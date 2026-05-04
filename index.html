@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Segoo.Ro - All in One App</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <style>
+        :root { --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%); --text-main: #2d3436; }
+        body { background: #F4F7FF; font-family: 'Segoe UI', Roboto, sans-serif; margin: 0; display: flex; justify-content: center; }
+        .app-container { width: 100%; max-width: 480px; min-height: 100vh; background: #F4F7FF; display: flex; flex-direction: column; padding: 20px; position: relative; }
+        
+        .view-page { display: none; }
+        .view-page.active { display: flex; flex-direction: column; flex: 1; animation: fadeIn 0.4s ease; }
+        
+        .header-profile { display: flex; align-items: center; margin-bottom: 25px; padding-top: 10px; }
+        .logo-container { width: 60px; height: 60px; background: white; border-radius: 18px; margin-right: 15px; display: flex; align-items: center; justify-content: center; padding: 5px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); overflow: hidden; flex-shrink: 0; }
+        .logo-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .greeting h1 { font-size: 1rem; margin: 0; color: #b2bec3; font-weight: 500; }
+        .greeting p { font-size: 1.2rem; margin: 0; font-weight: 800; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .main-card { background: var(--primary-gradient); border-radius: 25px; padding: 25px; color: white; margin-bottom: 25px; box-shadow: 0 12px 25px rgba(102, 126, 234, 0.2); }
+        .glass-input-group { background: white; border-radius: 20px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 25px; }
+        label { font-weight: 700; color: #b2bec3; font-size: 0.75rem; margin-bottom: 10px; display: block; text-transform: uppercase; }
+        .form-select, .form-control { border: 2px solid #f1f2f6; border-radius: 12px; padding: 12px; font-weight: 600; }
+        
+        .btn-submit { background: var(--primary-gradient); border: none; border-radius: 18px; padding: 16px; width: 100%; color: white; font-weight: 700; font-size: 1.1rem; box-shadow: 0 8px 20px rgba(118, 75, 162, 0.25); transition: 0.2s; }
+        .btn-submit:active { transform: scale(0.96); }
+        .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: auto; padding-bottom: 20px; }
+        .btn-action { background: white; border: none; padding: 15px; border-radius: 20px; color: #636e72; font-size: 0.85rem; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+        .btn-action i { font-size: 1.4rem; color: #764ba2; }
+        .btn-back { cursor: pointer; transition: 0.2s; }
+        .btn-back:active { transform: scale(0.9); }
+
+        /* Stok Layout Harian */
+        .stock-row { background: white; border-radius: 15px; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.02); border: 2px solid transparent; transition: all 0.3s ease; }
+        .badge-awal { background: #f1f2f6; color: #636e72; padding: 4px 8px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; display: inline-block; margin-top: 5px; }
+        .stock-control-labels { display: flex; justify-content: space-between; padding: 0 5px; }
+        .stock-control-labels .col-6:last-child { text-align: right; }
+        .stock-control-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 0 5px; }
+        .stock-control-inputs input { text-align: center; }
+        .stock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .stock-grid div[style*="grid-column: span 2"] { padding: 0 5px; }
+        .error-highlight { border: 2px solid #ff4757 !important; background-color: #fffafb !important; transform: scale(1.02); box-shadow: 0 8px 20px rgba(255, 71, 87, 0.15) !important; }
+
+        /* Admin UI: Tab & Gaji */
+        .admin-tab-nav { display: flex; background: #eee; border-radius: 12px; padding: 5px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; border: none; background: none; padding: 10px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; color: #636e72; }
+        .tab-btn.active { background: white; color: #764ba2; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .filter-box { background: white; border-radius: 15px; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
+        .salary-card { background: #fff; border-radius: 15px; padding: 15px; border-left: 5px solid #2ecc71; margin-bottom: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
+        .table-container { background: white; border-radius: 15px; padding: 10px; overflow-x: auto; font-size: 0.75rem; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
+        .table thead { background: #f8f9fa; }
+        .table th { border: none; color: #b2bec3; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.7rem; }
+        .btn-edit { padding: 2px 8px; font-size: 0.7rem; border-radius: 5px; }
+
+        /* Admin UI: Grid Stok (DIPERBARUI) */
+        .alert-banner { display: flex; gap: 10px; margin-bottom: 20px; }
+        .alert-box { flex: 1; padding: 12px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        
+        .stock-grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; padding: 5px; }
+        .stock-card-mini { background: white; border-radius: 15px; padding: 12px; border-top: 4px solid #ddd; box-shadow: 0 4px 10px rgba(0,0,0,0.02); position: relative; }
+        .stock-card-mini .stock-val { font-size: 1.2rem; font-weight: 800; margin: 5px 0; color: #2d3436; }
+        .stock-card-mini .stock-label { font-size: 0.75rem; font-weight: 700; color: #636e72; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 10px;}
+        .badge-perputaran { position: absolute; top: 10px; right: 10px; font-size: 0.55rem; padding: 2px 5px; border-radius: 5px; background: #f1f2f6; font-weight: bold; color: #2d3436;}
+        
+        /* Accordion Header & Badges */
+        .category-header-wrapper {
+            display: flex; justify-content: space-between; align-items: center;
+            background: white; padding: 12px 15px; border-radius: 12px;
+            margin-bottom: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+            cursor: pointer; transition: 0.2s; border: 1px solid #f1f2f6;
+        }
+        .category-header-wrapper:active { transform: scale(0.98); }
+        .stock-category-header { font-size: 0.85rem; font-weight: 800; color: var(--text-main); text-transform: uppercase; margin: 0; }
+        .category-badges { display: flex; gap: 6px; }
+        .cat-badge {
+            width: 22px; height: 22px; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.65rem; font-weight: 800; color: white;
+        }
+        .bg-safe { background: #2ecc71; } /* Hijau Khusus Aman */
+
+        .swal2-popup { border-radius: 25px !important; }
+        .swal2-confirm { background: var(--primary-gradient) !important; border-radius: 15px !important; padding: 12px 40px !important; font-weight: 600 !important; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+
+    <div id="pagePresensi" class="view-page active">
+        <div class="header-profile animate__animated animate__fadeIn">
+            <div class="logo-container"><img src="https://raw.githubusercontent.com/Dakrooon/img/main/segooro.png" alt="Logo"></div>
+            <div class="greeting"><h1>Selamat datang di,</h1><p>APLIKASI SEGOO.RO</p></div>
+        </div>
+        <div class="main-card animate__animated animate__zoomIn">
+            <h2 style="font-weight: 800; font-size: 1.4rem;">Presensi Karyawan</h2>
+            <p style="opacity: 0.9; font-size: 0.85rem; margin: 0;">Silakan pilih nama dan status kehadiran Anda.</p>
+        </div>
+        <div class="glass-input-group animate__animated animate__fadeInUp">
+            <div class="mb-3">
+                <label><i class="bi bi-person-fill me-1"></i> Nama Karyawan</label>
+                <select id="employeeName" class="form-select"><option value="">Memuat...</option></select>
+            </div>
+            <div class="mb-0">
+                <label><i class="bi bi-clock-fill me-1"></i> Tipe Absen</label>
+                <select id="statusType" class="form-select">
+                    <option value="Datang">Presensi Datang</option>
+                    <option value="Pulang">Presensi Pulang</option>
+                </select>
+            </div>
+        </div>
+        <div class="px-1">
+            <button id="btnSubmit" class="btn-submit animate__animated animate__fadeInUp animate__delay-1s" onclick="handleAbsen()">Absen Sekarang</button>
+        </div>
+        <div class="action-row animate__animated animate__fadeInUp animate__delay-1s">
+            <button class="btn-action" onclick="showPage('pageStok')"><i class="bi bi-box-seam"></i> Laporan Stok</button>
+            <button class="btn-action" onclick="openAdmin()"><i class="bi bi-shield-lock"></i> Panel Admin</button>
+        </div>
+    </div>
+
+    <div id="pageStok" class="view-page">
+        <div class="header-profile">
+            <div class="logo-container btn-back" onclick="showPage('pagePresensi')">
+                <i class="bi bi-arrow-left" style="font-size: 1.5rem; color: #764ba2;"></i>
+            </div>
+            <div class="greeting"><h1>Input Stok,</h1><p>LAPORAN HARIAN</p></div>
+        </div>
+        <div class="mb-3 px-1">
+            <label>Tanggal Laporan</label>
+            <input type="date" id="stockDate" class="form-control" style="border-radius: 15px;">
+        </div>
+        <div id="stockList" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
+        <div style="position: sticky; bottom: 0; background: #F4F7FF; padding: 15px 0;">
+            <button id="btnSaveStock" class="btn-submit" onclick="handleSaveStock()">Simpan Laporan</button>
+        </div>
+    </div>
+
+    <div id="pageAdmin" class="view-page">
+        <div class="header-profile">
+            <div class="logo-container btn-back" onclick="showPage('pagePresensi')">
+                <i class="bi bi-arrow-left" style="font-size: 1.5rem; color: #764ba2;"></i>
+            </div>
+            <div class="greeting"><h1>Panel Kontrol,</h1><p>ADMIN SEGOO.RO</p></div>
+        </div>
+        <div class="admin-tab-nav">
+            <button id="tab-payroll" class="tab-btn active" onclick="switchAdminTab('payroll')">Gaji</button>
+            <button id="tab-stok" class="tab-btn" onclick="switchAdminTab('stok')">Stok</button>
+            <button id="tab-master" class="tab-btn" onclick="switchAdminTab('master')">Data Master</button>
+        </div>
+        <div id="adminContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
+    </div>
+
+</div>
+
+<script>
+// ==========================================
+    // (PWA) KONFIGURASI API & FETCH ENGINE
+    // ==========================================
+    const API_URL = "https://script.google.com/macros/s/AKfycbyEyzRPvKN_H9OTxCe6YzLVFLegtIwB73lagp0weSoSgPjFfHtTxFsL77l75bD8JrOQ/exec";
+
+    // Fungsi ajaib pengganti google.script.run
+    async function gasAPI(action, payload = {}) {
+        payload.action = action;
+        try {
+            // Mengirim request POST ke GAS
+            const response = await fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify(payload)
+                // Catatan: Tidak pakai header Content-Type agar tidak terkena blokir CORS dari browser
+            });
+            const res = await response.json();
+            
+            if (!res.success) throw new Error(res.message);
+            return res.data; // Mengembalikan output asli dari fungsi GAS
+        } catch (error) {
+            console.error("API Error:", error);
+            throw error;
+        }
+    }
+
+    // --- INISIALISASI ---
+    window.onload = async () => {
+        document.getElementById('stockDate').valueAsDate = new Date();
+        try {
+            const names = await gasAPI('getEmployeeNames');
+            const select = document.getElementById('employeeName');
+            select.innerHTML = '<option value="">-- Pilih Nama --</option>';
+            names.forEach(n => select.innerHTML += `<option value="${n}">${n}</option>`);
+        } catch (e) {
+            Swal.fire({ toast:true, position:'top', icon:'error', title:'Gagal memuat nama', showConfirmButton:false, timer:2000 });
+        }
+    };
+
+    function showPage(pageId) {
+        document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+        if (pageId === 'pageStok') loadStockItems();
+    }
+
+    // --- PRESENSI ---
+    function handleAbsen() {
+        const name = document.getElementById('employeeName').value;
+        const type = document.getElementById('statusType').value;
+        const btn = document.getElementById('btnSubmit');
+
+        if (!name) return Swal.fire({ icon: 'warning', title: 'Pilih nama!', confirmButtonColor: '#764ba2' });
+        
+        btn.disabled = true; btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>...`;
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            try {
+                const res = await gasAPI('submitAttendance', {
+                    name: name, type: type, lat: pos.coords.latitude, lng: pos.coords.longitude
+                });
+                
+                btn.disabled = false; btn.innerHTML = "Absen Sekarang";
+                if (res.success) Swal.fire({ icon: 'success', title: 'Berhasil!', text: res.message, confirmButtonColor: '#764ba2' });
+                else Swal.fire({ icon: 'error', title: 'Gagal', text: res.message, confirmButtonColor: '#764ba2' });
+            } catch (err) {
+                btn.disabled = false; btn.innerHTML = "Absen Sekarang";
+                Swal.fire({ icon: 'error', title: 'Koneksi Error', text: err.message, confirmButtonColor: '#764ba2' });
+            }
+        }, (err) => {
+            btn.disabled = false; btn.innerHTML = "Absen Sekarang";
+            Swal.fire({ icon: 'info', title: 'GPS Mati', text: 'Aktifkan lokasi di HP Anda.', confirmButtonColor: '#764ba2' });
+        }, { enableHighAccuracy: true });
+    }
+
+    // --- STOK HARIAN (KARYAWAN) ---
+    let currentStockData = [];
+    async function loadStockItems() {
+        const listContainer = document.getElementById('stockList');
+        listContainer.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
+        
+        try {
+            const dateStr = document.getElementById('stockDate').value;
+            const data = await gasAPI('getStockData', { dateStr: dateStr });
+            currentStockData = data.map(item => { item.akhir = ""; return item; });
+            renderStockList(); // Pastikan fungsi renderStockList dari GAS tetap ada di atas/bawah skrip ini
+        } catch (err) {
+            listContainer.innerHTML = `<p class="text-center text-danger mt-4">Gagal memuat stok: ${err.message}</p>`;
+        }
+    }
+
+    async function submitIncrement(index, type) {
+        const inputElem = document.getElementById(`inp-${type}-${index}`);
+        const val = parseFloat(inputElem.value);
+        if (isNaN(val) || val <= 0) {
+            Swal.fire({ toast: true, position: 'top', icon: 'warning', title: 'Masukkan angka valid!', timer: 1500, showConfirmButton: false });
+            return;
+        }
+
+        const itemName = currentStockData[index].nama;
+        const dateStr = document.getElementById('stockDate').value;
+        const btn = inputElem.nextElementSibling;
+        const originalIcon = btn.innerHTML;
+        
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm" style="width: 1rem; height: 1rem;"></span>`;
+        btn.disabled = true; inputElem.disabled = true;
+
+        try {
+            const res = await gasAPI('addIndividualStockIncrement', {
+                dateStr: dateStr, itemName: itemName, fieldType: type, incrementValue: val
+            });
+            
+            btn.innerHTML = originalIcon; btn.disabled = false; inputElem.disabled = false;
+            if (res.success) {
+                currentStockData[index][type] = res.newTotal;
+                document.getElementById(`tot-${type}-${index}`).innerText = res.newTotal;
+                inputElem.value = "";
+                Swal.fire({ toast: true, position: 'top', showConfirmButton: false, timer: 2000, icon: 'success', title: `+${val} ${type} ditambahkan!` });
+            }
+        } catch (err) {
+            btn.innerHTML = originalIcon; btn.disabled = false; inputElem.disabled = false;
+            Swal.fire({ icon: 'error', title: 'Gagal Menyimpan', text: err.message, confirmButtonColor: '#764ba2' });
+        }
+    }
+
+    function updateVal(index, field, val) {
+        currentStockData[index][field] = (val === "") ? "" : parseFloat(val);
+        document.getElementById(`stockRow-${index}`).classList.remove('error-highlight');
+    }
+
+    async function handleSaveStock() {
+        let hasError = false; let missing = [];
+        currentStockData.forEach((item, index) => {
+            const row = document.getElementById(`stockRow-${index}`);
+            row.classList.remove('error-highlight');
+            if (item.akhir === "") { hasError = true; missing.push(item.nama); row.classList.add('error-highlight'); }
+        });
+
+        if (hasError) {
+            const first = document.querySelector('.error-highlight');
+            if(first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return Swal.fire({ icon: 'error', title: 'Belum Lengkap!', html: `Isi stok akhir untuk:<br><span class="text-danger small">${missing.join(', ')}</span><br><br><span style="font-size: 0.8rem; color: #666;">(Ketik angka 0 jika barang habis/kosong)</span>`, confirmButtonColor: '#ff4757' });
+        }
+
+        const btn = document.getElementById('btnSaveStock');
+        btn.disabled = true; btn.innerHTML = "Menyimpan...";
+        
+        try {
+            const res = await gasAPI('saveStockReport', {
+                dataArray: currentStockData, dateStr: document.getElementById('stockDate').value
+            });
+            btn.disabled = false; btn.innerHTML = "Simpan Laporan";
+            if(res.success) Swal.fire({ icon: 'success', title: 'Tersimpan!', confirmButtonColor: '#764ba2' }).then(() => showPage('pagePresensi'));
+        } catch (err) {
+            btn.disabled = false; btn.innerHTML = "Simpan Laporan";
+            Swal.fire({ icon: 'error', title: 'Error', text: err.message, confirmButtonColor: '#764ba2' });
+        }
+    }
+
+    // --- ADMIN DASHBOARD ---
+    let adminFilter = null;
+
+    function openAdmin() {
+        Swal.fire({
+            title: 'Akses Admin', input: 'password', inputPlaceholder: 'Masukkan PIN',
+            confirmButtonText: 'Masuk', showCancelButton: true, cancelButtonText: 'Batal', confirmButtonColor: '#764ba2'
+        }).then((result) => {
+            if (result.isConfirmed && result.value === "123321") {
+                showPage('pageAdmin'); switchAdminTab('payroll');
+            } else if(result.isConfirmed) {
+                Swal.fire('Gagal', 'PIN Salah!', 'error');
+            }
+        });
+    }
+
+    async function switchAdminTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        
+        const content = document.getElementById('adminContent');
+        content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
+
+        if (!adminFilter) {
+            let now = new Date();
+            adminFilter = {
+                start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
+                end: now.toISOString().split('T')[0],
+                name: "",
+                stockDate: now.toISOString().split('T')[0]
+            };
+        }
+
+        try {
+            const data = await gasAPI('getAdminDashboardData', {
+                start: adminFilter.start, end: adminFilter.end, name: adminFilter.name, stockDate: adminFilter.stockDate
+            });
+            
+            if (!data) throw new Error("Data kosong dari server.");
+            
+            if (tab === 'payroll') renderPayrollPage(data);
+            else if (tab === 'stok') {
+                if (!data.stocks) throw new Error("Data stok gagal dimuat.");
+                renderStockMonitorGrid(data.stocks); // Pastikan fungsi renderStockMonitorGrid & renderPayrollPage ada di bawah ini
+            }
+            else content.innerHTML = '<p class="text-center mt-5 text-muted">Fitur Data Master segera hadir.</p>';
+        } catch (err) {
+            content.innerHTML = `<div class="alert alert-danger m-3 small" style="border-radius:15px;"><b>Gagal Render UI:</b><br>${err.message}</div>`;
+        }
+    }
+
+    function applyAdminFilter() {
+        adminFilter.name = document.getElementById('filterName').value;
+        adminFilter.start = document.getElementById('adminStart').value;
+        adminFilter.end = document.getElementById('adminEnd').value;
+        switchAdminTab('payroll');
+    }
+
+    function applyStockFilter() {
+        adminFilter.stockDate = document.getElementById('adminStockDate').value;
+        switchAdminTab('stok');
+    }
+    
+    // FUNGSI TOGGLE ACCORDION
+    function toggleInputCat(id) {
+        const container = document.getElementById(id);
+        const icon = document.getElementById('icon-' + id);
+        if (container.style.display === 'none') { container.style.display = 'block'; icon.style.transform = 'rotate(0deg)'; } 
+        else { container.style.display = 'none'; icon.style.transform = 'rotate(-90deg)'; }
+    }
+    function toggleCat(id) {
+        const container = document.getElementById(id);
+        const badges = document.getElementById('badges-' + id);
+        const icon = document.getElementById('icon-' + id);
+        if (container.style.display === 'none') { container.style.display = 'grid'; badges.style.display = 'none'; icon.style.transform = 'rotate(0deg)'; } 
+        else { container.style.display = 'none'; badges.style.display = 'flex'; icon.style.transform = 'rotate(-90deg)'; }
+    }
+</script>
+
+</body>
+</html>
