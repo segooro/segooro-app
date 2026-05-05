@@ -513,11 +513,29 @@
         listContainer.innerHTML = html;
     }
 
-    // ==========================================
+   // ==========================================
     // MENU OWNER (KALKULATOR & BELANJA & PANTAU STOK)
     // ==========================================
     let globalRecipes = null;
     let adminFilter = { stockDate: new Date().toISOString().split('T')[0] };
+
+    // FUNGSI BARU: Mengambil resep super cepat dari Firestore
+    async function fetchRecipesFromFirestore() {
+        if (globalRecipes) return globalRecipes; // Hemat kuota jika sudah ditarik
+        
+        const snapshot = await db.collection('master_resep').get();
+        if (snapshot.empty) throw new Error("Data resep belum ada di Firestore!");
+        
+        let recipesObj = {};
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Menyusun ulang bentuk datanya agar persis seperti Spreadsheet lama
+            recipesObj[data.kode] = data.bahan_bahan; 
+        });
+        
+        globalRecipes = recipesObj;
+        return globalRecipes;
+    }
 
     function formatRecipeName(key) {
         const names = { 's_bawang': 'Sambal Bawang', 's_ijo': 'Sambal Ijo', 's_terasi': 'Sambal Terasi', 'ungkep': 'Ayam Ungkep', 'daging_koyor': 'Daging Koyor', 'iga': 'Iga' };
@@ -529,7 +547,7 @@
         if (!globalRecipes) content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
         
         try {
-            const recipes = await fetchRecipesFromFirestore(); // Panggil fungsi Firestore baru
+            const recipes = await fetchRecipesFromFirestore();
             renderKalkulatorPage(recipes);
         } catch (err) { 
             content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal memuat resep: ${err.message}</div>`; 
@@ -541,12 +559,14 @@
         if (!globalRecipes) content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
         
         try {
-            const recipes = await fetchRecipesFromFirestore(); // Panggil fungsi Firestore baru
+            const recipes = await fetchRecipesFromFirestore();
             renderBelanjaPage(recipes);
         } catch (err) { 
             content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal memuat resep: ${err.message}</div>`; 
         }
     }
+
+    function applyStockFilter() { // <-- Pastikan batas gantinya sampai di SINI saja ya
     function applyStockFilter() {
         adminFilter.stockDate = document.getElementById('adminStockDate').value;
         loadPemantau();
