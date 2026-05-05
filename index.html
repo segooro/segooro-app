@@ -1047,56 +1047,68 @@ let globalRecipes = null; // Menyimpan data resep
         const navBottom = document.querySelector('.bottom-nav');
         
         if (user) {
-            // Tampilkan loading sebentar selagi aplikasi mengecek jabatan ke server
-            Swal.fire({ title: 'Memeriksa Akses...', text: 'Mohon tunggu sebentar.', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+            Swal.fire({ title: 'Memeriksa Akses...', text: 'Tunggu sebentar...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
 
             try {
-                // Tanya ke Firestore: "Apakah email ini ada di tabel users?"
-                const docRef = await db.collection('users').doc(user.email).get();
-                let role = 'pegawai'; // Anggap saja pegawai sebagai default
+                // TIMER ANTI-BADAI: Batas waktu maksimal 5 detik
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Koneksi server melambat (Timeout).")), 5000));
                 
-                // Amankan dari potensi error huruf besar/kecil atau data kosong
+                // Mengambil data dari Firestore
+                const fetchPromise = db.collection('users').doc(user.email).get();
+                
+                // Berlomba: mana yang lebih dulu selesai, ambil data atau timeout 5 detik?
+                const docRef = await Promise.race([fetchPromise, timeoutPromise]);
+                
+                let role = 'pegawai'; // Default
                 if (docRef.exists && docRef.data().role) {
                     role = docRef.data().role.toLowerCase(); 
                 }
 
-                // Tampilkan halaman presensi sebagai halaman utama
+                // Tampilkan halaman presensi
                 document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
                 const pagePresensi = document.getElementById('pagePresensi');
                 if (pagePresensi) pagePresensi.classList.add('active');
-                
                 if (navBottom) navBottom.style.display = 'flex';
                 
-                // Tampilkan email user di header presensi
                 const userDisplay = document.getElementById('userDisplay');
                 if (userDisplay) {
                     userDisplay.innerHTML = `Halo, <b style="color: var(--primary-solid);">${user.email}</b> <span class="badge bg-secondary ms-1">${role.toUpperCase()}</span>`;
                 }
 
-                // LOGIKA SAKTI: Munculkan menu rahasia jika dia Owner
+                // Munculkan menu bos jika dia Owner
                 const ownerMenus = document.querySelectorAll('.owner-only');
                 if (role === 'owner') {
-                    ownerMenus.forEach(menu => menu.style.display = 'flex'); // Munculkan menu bos
+                    ownerMenus.forEach(menu => menu.style.display = 'flex'); 
                 } else {
-                    ownerMenus.forEach(menu => menu.style.display = 'none'); // Sembunyikan dari pegawai
+                    ownerMenus.forEach(menu => menu.style.display = 'none'); 
                 }
 
-                Swal.close(); // Tutup loading HANYA JIKA semua sukses tanpa error
+                Swal.close(); // Tutup loading
 
             } catch (err) {
-                // JIKA ADA ERROR, MUNCULKAN POPUP INI
-                Swal.fire('Error Sistem', 'Gagal memuat profil: ' + err.message, 'error');
+                // JIKA ERROR / TIMEOUT: Tetap izinkan masuk sebagai Pegawai sementara
+                console.error("Firestore Error:", err);
+                Swal.fire({ icon: 'warning', title: 'Mode Offline/Standar', text: err.message, timer: 3000, showConfirmButton: false });
+                
+                // Paksa masuk sebagai pegawai
+                document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
+                const pagePresensi = document.getElementById('pagePresensi');
+                if (pagePresensi) pagePresensi.classList.add('active');
+                if (navBottom) navBottom.style.display = 'flex';
+                
+                document.querySelectorAll('.owner-only').forEach(menu => menu.style.display = 'none');
+                const userDisplay = document.getElementById('userDisplay');
+                if (userDisplay) userDisplay.innerHTML = `Halo, <b style="color: var(--primary-solid);">${user.email}</b>`;
             }
             
         } else {
-            // JIKA BELUM LOGIN / LOGOUT: Paksa ke halaman login
+            // JIKA BELUM LOGIN / LOGOUT
             document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
             const pageLogin = document.getElementById('pageLogin');
             if (pageLogin) pageLogin.classList.add('active');
             if (navBottom) navBottom.style.display = 'none';
         }
     });
-
     // 2. Fungsi Masuk (Login)
     function handleLogin() {
         const email = document.getElementById('loginEmail').value;
