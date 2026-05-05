@@ -161,48 +161,47 @@
 <body>
 
 <div class="app-container">
-<!-- HALAMAN LOGIN -->
+<<!-- HALAMAN LOGIN -->
         <div id="pageLogin" class="view-page active">
             <div class="text-center mb-5 mt-4 animate__animated animate__fadeInDown">
-                <div style="background: var(--primary-gradient); width: 80px; height: 80px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 15px; box-shadow: 0 10px 20px rgba(29, 64, 122, 0.2);">
-                    <i class="bi bi-person-badge text-white" style="font-size: 2.5rem;"></i>
-                </div>
-                <h3 class="fw-bold" style="color: var(--primary-solid);">Segoo.Ro</h3>
-                <p class="text-muted small">Sistem Manajemen Internal</p>
+                <img src="https://raw.githubusercontent.com/Dakrooon/img/main/segooro.png" alt="Logo Segoo.Ro" style="max-width: 200px; margin-bottom: 15px;">
+                <p class="text-muted fw-bold small" style="letter-spacing: 1px;">SISTEM MANAJEMEN INTERNAL</p>
             </div>
 
             <div class="animate__animated animate__fadeInUp">
                 <div class="mb-3">
                     <label class="small fw-bold mb-2 text-muted">Email Pengguna</label>
-                    <input type="email" id="loginEmail" class="form-control form-control-lg" placeholder="nama@segooro.com" style="border-radius: 15px; font-size: 0.95rem;">
+                    <input type="email" id="loginEmail" class="form-control form-control-lg" placeholder="nama@email.com" style="border-radius: 15px; font-size: 0.95rem;">
                 </div>
                 <div class="mb-4">
                     <label class="small fw-bold mb-2 text-muted">Kata Sandi</label>
                     <input type="password" id="loginPassword" class="form-control form-control-lg" placeholder="Masukkan kata sandi" style="border-radius: 15px; font-size: 0.95rem;">
                     <div class="text-end mt-2">
-                        <a href="#" class="small text-decoration-none" style="color: var(--primary-solid); font-weight: 600;">Lupa Sandi?</a>
+                        <a href="#" class="small text-decoration-none" style="color: var(--primary-solid); font-weight: 600;" onclick="handleResetPassword()">Lupa Sandi?</a>
                     </div>
                 </div>
 
-                <button class="btn btn-primary w-100 py-3 mb-3 shadow-sm" style="background: var(--primary-gradient); border: none; border-radius: 15px; font-weight: bold; font-size: 1rem;" onclick="handleLogin()">
+                <button class="btn w-100 py-3 mb-3 shadow-sm text-white" style="background: var(--primary-gradient); border: none; border-radius: 15px; font-weight: bold; font-size: 1rem;" onclick="handleLogin()">
                     Masuk Sekarang
                 </button>
                 
                 <div class="text-center mt-4">
                     <span class="small text-muted">Belum punya akun?</span>
-                    <a href="#" class="small text-decoration-none fw-bold ms-1" style="color: var(--primary-solid);">Daftar Baru</a>
+                    <a href="#" class="small text-decoration-none fw-bold ms-1" style="color: var(--primary-solid);" onclick="handleRegister()">Daftar Baru</a>
                 </div>
             </div>
         </div>
     <div id="pagePresensi" class="view-page">
-        <div class="header-profile animate__animated animate__fadeIn">
-            <div class="logo-container"><img src="https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-512.png" alt="Logo"></div>
-            <div class="greeting"><h1>Selamat datang di,</h1><p>APLIKASI SEGOO.RO</p></div>
-        </div>
-        <div class="main-card animate__animated animate__zoomIn">
-            <h2 style="font-weight: 800; font-size: 1.4rem;">Presensi Karyawan</h2>
-            <p style="opacity: 0.9; font-size: 0.85rem; margin: 0;">Silakan pilih nama dan status kehadiran Anda.</p>
-        </div>
+        <!-- PENGGANTI HEADER PRESENSI -->
+            <div class="d-flex justify-content-between align-items-center mb-4 mt-2 animate__animated animate__fadeInDown">
+                <div>
+                    <h5 class="fw-bold mb-0" style="color: var(--primary-solid);">Presensi Karyawan</h5>
+                    <small class="text-muted" id="userDisplay">Selamat datang!</small>
+                </div>
+                <button class="btn btn-sm btn-outline-danger shadow-sm" style="border-radius: 10px;" onclick="handleLogout()">
+                    <i class="bi bi-box-arrow-right"></i> Keluar
+                </button>
+            </div>
         <div class="glass-input-group animate__animated animate__fadeInUp">
             <div class="mb-3">
                 <label><i class="bi bi-person-fill me-1"></i> Nama Karyawan</label>
@@ -1024,6 +1023,95 @@ let globalRecipes = null; // Menyimpan data resep
 
         tableHtml += `</tbody></table></div>`;
         container.innerHTML = tableHtml;
+    }
+
+    // ==========================================
+    // LOGIKA AUTENTIKASI FIREBASE (LOGIN/REGISTER)
+    // ==========================================
+
+    // 1. Pemantau Sesi (Otomatis cek apakah user sudah login atau belum)
+    firebase.auth().onAuthStateChanged((user) => {
+        const navBottom = document.querySelector('.bottom-nav');
+        if (user) {
+            // JIKA SUDAH LOGIN: Sembunyikan halaman login, tampilkan PWA
+            document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
+            document.getElementById('pagePresensi').classList.add('active');
+            if (navBottom) navBottom.style.display = 'flex'; // Munculkan menu bawah
+            
+            // Tampilkan email user di halaman presensi
+            document.getElementById('userDisplay').innerHTML = `Halo, <b style="color: var(--primary-solid);">${user.email}</b>`;
+        } else {
+            // JIKA BELUM LOGIN / LOGOUT: Paksa ke halaman login
+            document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
+            document.getElementById('pageLogin').classList.add('active');
+            if (navBottom) navBottom.style.display = 'none'; // Sembunyikan menu bawah
+        }
+    });
+
+    // 2. Fungsi Masuk (Login)
+    function handleLogin() {
+        const email = document.getElementById('loginEmail').value;
+        const pass = document.getElementById('loginPassword').value;
+        if (!email || !pass) return Swal.fire('Perhatian', 'Harap isi email dan kata sandi.', 'warning');
+
+        Swal.fire({ title: 'Memeriksa...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+        firebase.auth().signInWithEmailAndPassword(email, pass)
+            .then(() => { Swal.close(); }) // Akan dialihkan otomatis oleh onAuthStateChanged
+            .catch(error => { Swal.fire('Gagal Masuk', 'Kombinasi email dan sandi salah, atau akun belum terdaftar.', 'error'); });
+    }
+
+    // 3. Fungsi Daftar Baru (Menggunakan Pop-up SweetAlert agar rapi)
+    function handleRegister() {
+        Swal.fire({
+            title: 'Daftar Akun Baru',
+            html: `<input id="regEmail" type="email" class="swal2-input" placeholder="Email aktif kamu">
+                   <input id="regPass" type="password" class="swal2-input" placeholder="Buat kata sandi (min 6 huruf/angka)">`,
+            confirmButtonText: 'Daftar Sekarang',
+            showCancelButton: true,
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#1D407A',
+            preConfirm: () => {
+                return { email: document.getElementById('regEmail').value, pass: document.getElementById('regPass').value };
+            }
+        }).then((res) => {
+            if (res.isConfirmed) {
+                if (!res.value.email || res.value.pass.length < 6) return Swal.fire('Gagal', 'Email harus valid dan sandi minimal 6 karakter.', 'error');
+                
+                Swal.fire({ title: 'Mendaftarkan Akun...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+                firebase.auth().createUserWithEmailAndPassword(res.value.email, res.value.pass)
+                    .then(() => { Swal.fire('Berhasil!', 'Akun terdaftar dan langsung masuk.', 'success'); })
+                    .catch(error => { Swal.fire('Gagal', error.message, 'error'); });
+            }
+        });
+    }
+
+    // 4. Fungsi Lupa Sandi
+    function handleResetPassword() {
+        Swal.fire({
+            title: 'Reset Kata Sandi',
+            input: 'email',
+            inputPlaceholder: 'Masukkan alamat email akunmu',
+            confirmButtonText: 'Kirim Link Reset',
+            showCancelButton: true,
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#1D407A'
+        }).then((res) => {
+            if (res.isConfirmed && res.value) {
+                firebase.auth().sendPasswordResetEmail(res.value)
+                    .then(() => Swal.fire('Terkirim!', 'Periksa kotak masuk/spam email kamu untuk membuat sandi baru.', 'success'))
+                    .catch(error => Swal.fire('Gagal', 'Email tidak ditemukan.', 'error'));
+            }
+        });
+    }
+
+    // 5. Fungsi Keluar (Logout)
+    function handleLogout() {
+        Swal.fire({
+            title: 'Keluar?', text: 'Kamu harus memasukkan email dan sandi lagi nanti.', icon: 'warning',
+            showCancelButton: true, confirmButtonColor: '#e74c3c', cancelButtonText: 'Batal', confirmButtonText: 'Ya, Keluar'
+        }).then((result) => {
+            if (result.isConfirmed) { firebase.auth().signOut(); }
+        });
     }
 </script>
 
