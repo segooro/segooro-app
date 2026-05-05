@@ -91,6 +91,52 @@
 
         .swal2-popup { border-radius: 25px !important; }
         .swal2-confirm { background: var(--primary-gradient) !important; border-radius: 15px !important; padding: 12px 40px !important; font-weight: 600 !important; }
+        /* --- BOTTOM NAVIGATION BAR --- */
+        .app-container { padding-bottom: 80px; } /* Memberi ruang agar konten tidak tertutup nav bar */
+        
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 0 15px 0;
+            z-index: 1000;
+            border-radius: 25px 25px 0 0;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: #b2bec3;
+            font-size: 0.65rem;
+            font-weight: 700;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+        .nav-item i {
+            font-size: 1.4rem;
+            margin-bottom: 3px;
+            transition: transform 0.2s, color 0.2s;
+        }
+        .nav-item.active {
+            color: #764ba2;
+        }
+        .nav-item.active i {
+            transform: scale(1.15);
+            color: #764ba2;
+        }
+        
+        /* Matikan tombol back lama karena sudah pakai nav bawah */
+        .btn-back { pointer-events: none; }
+        .btn-back i { display: none; }
     </style>
     <!-- Registrasi Service Worker -->
     <script>
@@ -132,10 +178,6 @@
         <div class="px-1">
             <button id="btnSubmit" class="btn-submit animate__animated animate__fadeInUp animate__delay-1s" onclick="handleAbsen()">Absen Sekarang</button>
         </div>
-        <div class="action-row animate__animated animate__fadeInUp animate__delay-1s">
-            <button class="btn-action" onclick="showPage('pageStok')"><i class="bi bi-box-seam"></i> Laporan Stok</button>
-            <button class="btn-action" onclick="openAdmin()"><i class="bi bi-shield-lock"></i> Panel Admin</button>
-        </div>
     </div>
 
     <div id="pageStok" class="view-page">
@@ -169,7 +211,21 @@
         </div>
         <div id="adminContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
-
+<!-- BOTTOM NAVIGATION -->
+        <nav class="bottom-nav">
+            <a class="nav-item active" id="nav-presensi" onclick="handleNav('pagePresensi')">
+                <i class="bi bi-house-door-fill"></i>
+                <span>Presensi</span>
+            </a>
+            <a class="nav-item" id="nav-stok" onclick="handleNav('pageStok')">
+                <i class="bi bi-box-seam-fill"></i>
+                <span>Stok</span>
+            </a>
+            <a class="nav-item" id="nav-admin" onclick="handleNav('pageAdmin')">
+                <i class="bi bi-shield-lock-fill"></i>
+                <span>Admin</span>
+            </a>
+        </nav>
 </div>
 
 <script>
@@ -211,12 +267,7 @@
         }
     };
 
-    function showPage(pageId) {
-        document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
-        document.getElementById(pageId).classList.add('active');
-        if (pageId === 'pageStok') loadStockItems();
-    }
-
+    
     // --- PRESENSI ---
     function handleAbsen() {
         const name = document.getElementById('employeeName').value;
@@ -333,13 +384,42 @@
     // --- ADMIN DASHBOARD ---
     let adminFilter = null;
 
+    // --- FUNGSI NAVIGASI BARU ---
+    function handleNav(pageId) {
+        if (pageId === 'pageAdmin') {
+            openAdmin(); // Panggil PIN dulu kalau mau ke Admin
+        } else {
+            showPage(pageId); // Langsung pindah kalau ke Presensi / Stok
+        }
+    }
+
+    function showPage(pageId) {
+        // Sembunyikan semua halaman
+        document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
+        // Tampilkan halaman yang dipilih
+        document.getElementById(pageId).classList.add('active');
+        
+        // Update warna tombol di Bottom Nav
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        if(pageId === 'pagePresensi') document.getElementById('nav-presensi').classList.add('active');
+        if(pageId === 'pageStok') document.getElementById('nav-stok').classList.add('active');
+        if(pageId === 'pageAdmin') document.getElementById('nav-admin').classList.add('active');
+
+        // Render otomatis jika masuk halaman stok
+        if (pageId === 'pageStok') loadStockItems();
+    }
+
     function openAdmin() {
+        // Jika sedang di halaman admin, abaikan kliknya
+        if (document.getElementById('pageAdmin').classList.contains('active')) return;
+        
         Swal.fire({
             title: 'Akses Admin', input: 'password', inputPlaceholder: 'Masukkan PIN',
             confirmButtonText: 'Masuk', showCancelButton: true, cancelButtonText: 'Batal', confirmButtonColor: '#764ba2'
         }).then((result) => {
             if (result.isConfirmed && result.value === "123321") {
-                showPage('pageAdmin'); switchAdminTab('payroll');
+                showPage('pageAdmin'); 
+                switchAdminTab('payroll');
             } else if(result.isConfirmed) {
                 Swal.fire('Gagal', 'PIN Salah!', 'error');
             }
