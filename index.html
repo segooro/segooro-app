@@ -6,7 +6,7 @@
     <title>Segoo.Ro - All in One App</title>
     <!-- PWA Meta Tags -->
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#764ba2">
+    <meta name="theme-color" content="#1D407A">
     <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
@@ -14,7 +14,13 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <style>
-        :root { --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%); --text-main: #2d3436; }
+        :root { 
+            /* Mengganti gradasi ungu dengan gradasi biru gelap baru */
+            --primary-gradient: linear-gradient(135deg, #1D407A 0%, #0F2754 100%); 
+            --text-main: #2d3436; 
+            /* Variabel warna solid baru untuk elemen yang tidak pakai gradasi (seperti icon active) */
+            --primary-solid: #1D407A; 
+        }
         body { background: #F4F7FF; font-family: 'Segoe UI', Roboto, sans-serif; margin: 0; display: flex; justify-content: center; }
         .app-container { width: 100%; max-width: 480px; min-height: 100vh; background: #F4F7FF; display: flex; flex-direction: column; padding: 20px; position: relative; }
         
@@ -36,7 +42,7 @@
         .btn-submit:active { transform: scale(0.96); }
         .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: auto; padding-bottom: 20px; }
         .btn-action { background: white; border: none; padding: 15px; border-radius: 20px; color: #636e72; font-size: 0.85rem; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
-        .btn-action i { font-size: 1.4rem; color: #764ba2; }
+        .btn-action i { font-size: 1.4rem; color: #1D407A; }
         .btn-back { cursor: pointer; transition: 0.2s; }
         .btn-back:active { transform: scale(0.9); }
 
@@ -54,7 +60,7 @@
         /* Admin UI: Tab & Gaji */
         .admin-tab-nav { display: flex; background: #eee; border-radius: 12px; padding: 5px; margin-bottom: 20px; }
         .tab-btn { flex: 1; border: none; background: none; padding: 10px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; color: #636e72; }
-        .tab-btn.active { background: white; color: #764ba2; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .tab-btn.active { background: white; color: #1D407A; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         .filter-box { background: white; border-radius: 15px; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
         .salary-card { background: #fff; border-radius: 15px; padding: 15px; border-left: 5px solid #2ecc71; margin-bottom: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
         .table-container { background: white; border-radius: 15px; padding: 10px; overflow-x: auto; font-size: 0.75rem; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
@@ -127,11 +133,11 @@
             transition: transform 0.2s, color 0.2s;
         }
         .nav-item.active {
-            color: #764ba2;
+            color: var(--primary-solid);
         }
         .nav-item.active i {
             transform: scale(1.15);
-            color: #764ba2;
+            color: var(--primary-solid);
         }
         
         /* Matikan tombol back lama karena sudah pakai nav bawah */
@@ -183,7 +189,7 @@
     <div id="pageStok" class="view-page">
         <div class="header-profile">
             <div class="logo-container btn-back" onclick="showPage('pagePresensi')">
-                <i class="bi bi-arrow-left" style="font-size: 1.5rem; color: #764ba2;"></i>
+                <i class="bi bi-arrow-left" style="font-size: 1.5rem; color: #1D407A;"></i>
             </div>
             <div class="greeting"><h1>Input Stok,</h1><p>LAPORAN HARIAN</p></div>
         </div>
@@ -200,7 +206,7 @@
     <div id="pageAdmin" class="view-page">
         <div class="header-profile">
             <div class="logo-container btn-back" onclick="showPage('pagePresensi')">
-                <i class="bi bi-arrow-left" style="font-size: 1.5rem; color: #764ba2;"></i>
+                <i class="bi bi-arrow-left" style="font-size: 1.5rem; color: #1D407A;"></i>
             </div>
             <div class="greeting"><h1>Panel Kontrol,</h1><p>ADMIN SEGOO.RO</p></div>
         </div>
@@ -274,7 +280,7 @@
         const type = document.getElementById('statusType').value;
         const btn = document.getElementById('btnSubmit');
 
-        if (!name) return Swal.fire({ icon: 'warning', title: 'Pilih nama!', confirmButtonColor: '#764ba2' });
+        if (!name) return Swal.fire({ icon: 'warning', title: 'Pilih nama!', confirmButtonColor: '#1D407A' });
         
         btn.disabled = true; btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>...`;
 
@@ -285,15 +291,15 @@
                 });
                 
                 btn.disabled = false; btn.innerHTML = "Absen Sekarang";
-                if (res.success) Swal.fire({ icon: 'success', title: 'Berhasil!', text: res.message, confirmButtonColor: '#764ba2' });
-                else Swal.fire({ icon: 'error', title: 'Gagal', text: res.message, confirmButtonColor: '#764ba2' });
+                if (res.success) Swal.fire({ icon: 'success', title: 'Berhasil!', text: res.message, confirmButtonColor: '#1D407A' });
+                else Swal.fire({ icon: 'error', title: 'Gagal', text: res.message, confirmButtonColor: '#1D407A' });
             } catch (err) {
                 btn.disabled = false; btn.innerHTML = "Absen Sekarang";
-                Swal.fire({ icon: 'error', title: 'Koneksi Error', text: err.message, confirmButtonColor: '#764ba2' });
+                Swal.fire({ icon: 'error', title: 'Koneksi Error', text: err.message, confirmButtonColor: '#1D407A' });
             }
         }, (err) => {
             btn.disabled = false; btn.innerHTML = "Absen Sekarang";
-            Swal.fire({ icon: 'info', title: 'GPS Mati', text: 'Aktifkan lokasi di HP Anda.', confirmButtonColor: '#764ba2' });
+            Swal.fire({ icon: 'info', title: 'GPS Mati', text: 'Aktifkan lokasi di HP Anda.', confirmButtonColor: '#1D407A' });
         }, { enableHighAccuracy: true });
     }
 
@@ -343,7 +349,7 @@
             }
         } catch (err) {
             btn.innerHTML = originalIcon; btn.disabled = false; inputElem.disabled = false;
-            Swal.fire({ icon: 'error', title: 'Gagal Menyimpan', text: err.message, confirmButtonColor: '#764ba2' });
+            Swal.fire({ icon: 'error', title: 'Gagal Menyimpan', text: err.message, confirmButtonColor: '#1D407A' });
         }
     }
 
@@ -374,10 +380,10 @@
                 dataArray: currentStockData, dateStr: document.getElementById('stockDate').value
             });
             btn.disabled = false; btn.innerHTML = "Simpan Laporan";
-            if(res.success) Swal.fire({ icon: 'success', title: 'Tersimpan!', confirmButtonColor: '#764ba2' }).then(() => showPage('pagePresensi'));
+            if(res.success) Swal.fire({ icon: 'success', title: 'Tersimpan!', confirmButtonColor: '#1D407A' }).then(() => showPage('pagePresensi'));
         } catch (err) {
             btn.disabled = false; btn.innerHTML = "Simpan Laporan";
-            Swal.fire({ icon: 'error', title: 'Error', text: err.message, confirmButtonColor: '#764ba2' });
+            Swal.fire({ icon: 'error', title: 'Error', text: err.message, confirmButtonColor: '#1D407A' });
         }
     }
 
@@ -415,7 +421,7 @@
         
         Swal.fire({
             title: 'Akses Admin', input: 'password', inputPlaceholder: 'Masukkan PIN',
-            confirmButtonText: 'Masuk', showCancelButton: true, cancelButtonText: 'Batal', confirmButtonColor: '#764ba2'
+            confirmButtonText: 'Masuk', showCancelButton: true, cancelButtonText: 'Batal', confirmButtonColor: '#1D407A'
         }).then((result) => {
             if (result.isConfirmed && result.value === "123321") {
                 showPage('pageAdmin'); 
@@ -631,7 +637,7 @@
             confirmButtonText: 'Simpan',
             showCancelButton: true,
             cancelButtonText: 'Batal',
-            confirmButtonColor: '#764ba2',
+            confirmButtonColor: '#1D407A',
             preConfirm: () => { 
                 return { in: document.getElementById('editIn').value, out: document.getElementById('editOut').value }; 
             }
