@@ -1042,29 +1042,37 @@ let globalRecipes = null; // Menyimpan data resep
     // LOGIKA AUTENTIKASI FIREBASE (LOGIN/REGISTER)
     // ==========================================
 
-    // 1. Pemantau Sesi & Pengecek Jabatan (Role)
+    /// 1. Pemantau Sesi & Pengecek Jabatan (Role) KETAT
     firebase.auth().onAuthStateChanged(async (user) => {
         const navBottom = document.querySelector('.bottom-nav');
         
         if (user) {
-            Swal.fire({ title: 'Memeriksa Akses...', text: 'Tunggu sebentar...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+            // Loading ini akan menampilkan email persis yang sedang dicari ke database
+            Swal.fire({ 
+                title: 'Memeriksa Akses...', 
+                html: `Mencari data jabatan untuk:<br><b class="text-primary">${user.email}</b>`, 
+                allowOutsideClick: false, 
+                didOpen: () => { Swal.showLoading() } 
+            });
 
             try {
-                // TIMER ANTI-BADAI: Batas waktu maksimal 5 detik
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Koneksi server melambat (Timeout).")), 5000));
+                // Tembak langsung ke database tanpa kompromi!
+                const docRef = await db.collection('users').doc(user.email).get();
                 
-                // Mengambil data dari Firestore
-                const fetchPromise = db.collection('users').doc(user.email).get();
-                
-                // Berlomba: mana yang lebih dulu selesai, ambil data atau timeout 5 detik?
-                const docRef = await Promise.race([fetchPromise, timeoutPromise]);
-                
-                let role = 'pegawai'; // Default
-                if (docRef.exists && docRef.data().role) {
-                    role = docRef.data().role.toLowerCase(); 
+                // Jika email tidak ada di buku database, langsung ERROR!
+                if (!docRef.exists) {
+                    throw new Error(`Email <b>${user.email}</b> tidak ditemukan di tabel "users" Firestore!`);
                 }
 
-                // Tampilkan halaman presensi
+                // Ambil data role
+                let role = docRef.data().role;
+                if (!role) {
+                    throw new Error(`Kolom "role" belum dibuat untuk email ini di Firestore!`);
+                }
+
+                role = role.toLowerCase(); // Amankan ke huruf kecil
+
+                // Jika sukses, buka gerbangnya!
                 document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
                 const pagePresensi = document.getElementById('pagePresensi');
                 if (pagePresensi) pagePresensi.classList.add('active');
@@ -1083,22 +1091,18 @@ let globalRecipes = null; // Menyimpan data resep
                     ownerMenus.forEach(menu => menu.style.display = 'none'); 
                 }
 
-                Swal.close(); // Tutup loading
+                Swal.close(); // Tutup loading jika sukses
 
             } catch (err) {
-                // JIKA ERROR / TIMEOUT: Tetap izinkan masuk sebagai Pegawai sementara
-                console.error("Firestore Error:", err);
-                Swal.fire({ icon: 'warning', title: 'Mode Offline/Standar', text: err.message, timer: 3000, showConfirmButton: false });
-                
-                // Paksa masuk sebagai pegawai
-                document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
-                const pagePresensi = document.getElementById('pagePresensi');
-                if (pagePresensi) pagePresensi.classList.add('active');
-                if (navBottom) navBottom.style.display = 'flex';
-                
-                document.querySelectorAll('.owner-only').forEach(menu => menu.style.display = 'none');
-                const userDisplay = document.getElementById('userDisplay');
-                if (userDisplay) userDisplay.innerHTML = `Halo, <b style="color: var(--primary-solid);">${user.email}</b>`;
+                // JIKA GAGAL, TAMPILKAN ALASAN ASLINYA DI LAYAR!
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Akses Ditolak',
+                    html: err.message
+                }).then(() => {
+                    // Paksa keluar (logout) karena akun bermasalah
+                    firebase.auth().signOut(); 
+                });
             }
             
         } else {
