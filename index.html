@@ -1055,19 +1055,23 @@ let globalRecipes = null; // Menyimpan data resep
                 const docRef = await db.collection('users').doc(user.email).get();
                 let role = 'pegawai'; // Anggap saja pegawai sebagai default
                 
-                if (docRef.exists) {
-                    role = docRef.data().role; // Ambil jabatannya (owner/pegawai)
+                // Amankan dari potensi error huruf besar/kecil atau data kosong
+                if (docRef.exists && docRef.data().role) {
+                    role = docRef.data().role.toLowerCase(); 
                 }
-
-                Swal.close(); // Tutup loading
 
                 // Tampilkan halaman presensi sebagai halaman utama
                 document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
-                document.getElementById('pagePresensi').classList.add('active');
+                const pagePresensi = document.getElementById('pagePresensi');
+                if (pagePresensi) pagePresensi.classList.add('active');
+                
                 if (navBottom) navBottom.style.display = 'flex';
                 
                 // Tampilkan email user di header presensi
-                document.getElementById('userDisplay').innerHTML = `Halo, <b style="color: var(--primary-solid);">${user.email}</b> <span class="badge bg-secondary ms-1">${role.toUpperCase()}</span>`;
+                const userDisplay = document.getElementById('userDisplay');
+                if (userDisplay) {
+                    userDisplay.innerHTML = `Halo, <b style="color: var(--primary-solid);">${user.email}</b> <span class="badge bg-secondary ms-1">${role.toUpperCase()}</span>`;
+                }
 
                 // LOGIKA SAKTI: Munculkan menu rahasia jika dia Owner
                 const ownerMenus = document.querySelectorAll('.owner-only');
@@ -1077,14 +1081,18 @@ let globalRecipes = null; // Menyimpan data resep
                     ownerMenus.forEach(menu => menu.style.display = 'none'); // Sembunyikan dari pegawai
                 }
 
+                Swal.close(); // Tutup loading HANYA JIKA semua sukses tanpa error
+
             } catch (err) {
-                Swal.fire('Error', 'Gagal memeriksa jabatan: ' + err.message, 'error');
+                // JIKA ADA ERROR, MUNCULKAN POPUP INI
+                Swal.fire('Error Sistem', 'Gagal memuat profil: ' + err.message, 'error');
             }
             
         } else {
             // JIKA BELUM LOGIN / LOGOUT: Paksa ke halaman login
             document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
-            document.getElementById('pageLogin').classList.add('active');
+            const pageLogin = document.getElementById('pageLogin');
+            if (pageLogin) pageLogin.classList.add('active');
             if (navBottom) navBottom.style.display = 'none';
         }
     });
@@ -1097,7 +1105,7 @@ let globalRecipes = null; // Menyimpan data resep
 
         Swal.fire({ title: 'Memeriksa...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
         firebase.auth().signInWithEmailAndPassword(email, pass)
-            .then(() => { Swal.close(); }) // Akan dialihkan otomatis oleh onAuthStateChanged
+            // .then(() => { Swal.close(); }) dihapus agar tidak bentrok dengan loading role Firestore
             .catch(error => { Swal.fire('Gagal Masuk', 'Kombinasi email dan sandi salah, atau akun belum terdaftar.', 'error'); });
     }
 
