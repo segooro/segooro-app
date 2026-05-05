@@ -248,6 +248,12 @@
             <button id="tab-kalkulator" class="tab-btn" onclick="switchAdminTab('kalkulator')">Kalkulator</button>
             <button id="tab-belanja" class="tab-btn" onclick="switchAdminTab('belanja')">Belanja</button>
         </div>
+        <!-- TOMBOL NINJA SINKRONISASI (Hanya Muncul untuk Owner) -->
+<div class="px-1 owner-only" style="display:none;">
+    <button id="btnSync" class="btn btn-warning w-100 mb-3 fw-bold shadow-sm" style="border-radius: 15px; padding: 12px;" onclick="sedotDataDariSheets()">
+        <i class="bi bi-cloud-download-fill me-2"></i> Sinkronisasi Stok ke Firebase
+    </button>
+</div>
         <div id="adminContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
 <!-- BOTTOM NAVIGATION -->
@@ -1201,6 +1207,49 @@ let globalRecipes = null; // Menyimpan data resep
             if (result.isConfirmed) { firebase.auth().signOut(); }
         });
     }
+
+    async function sedotDataDariSheets() {
+    const result = await Swal.fire({
+        title: 'Mulai Sinkronisasi?',
+        text: "Seluruh data barang dari Google Sheets akan dipindahkan ke Firebase.",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Sedot!',
+        confirmButtonColor: '#1D407A'
+    });
+
+    if (!result.isConfirmed) return;
+
+    Swal.fire({ title: 'Menyedot Data...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+
+    try {
+        // 1. Ambil data asli dari Google Sheets lewat API lama
+        const dataSheets = await gasAPI('getStockData', { dateStr: new Date().toISOString().split('T')[0] });
+
+        if (!dataSheets || dataSheets.length === 0) throw new Error("Data di Google Sheets kosong!");
+
+        // 2. Kirim ke Firestore satu per satu
+        const batch = db.batch(); // Gunakan batch agar proses lebih cepat
+        
+        dataSheets.forEach((item) => {
+            // Gunakan nama barang sebagai ID agar tidak duplikat
+            const docRef = db.collection('master_stok').doc(item.nama.trim());
+            batch.set(docRef, {
+                nama: item.nama.trim(),
+                kategori: item.kategori,
+                satuan: item.satuan,
+                last_updated: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+
+        await batch.commit();
+
+        Swal.fire('Sukses Ninja!', `${dataSheets.length} barang berhasil dipindah ke Firebase.`, 'success');
+        
+    } catch (err) {
+        Swal.fire('Gagal Ninja', err.message, 'error');
+    }
+}
 </script>
 
 </body>
