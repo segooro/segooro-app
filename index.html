@@ -332,7 +332,9 @@
             return Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Sesi kamu telah habis, silakan login ulang.', confirmButtonColor: '#1D407A' });
         }
 
-        const name = user.email.split('@')[0].toUpperCase();
+        // AMBIL NAMA DARI MEMORI SISTEM YANG KITA BUAT TADI (Bukan email lagi)
+        const name = window.currentUserNama || user.email.split('@')[0].toUpperCase();
+        
         const type = document.getElementById('statusType').value;
         const btn = document.getElementById('btnSubmit');
 
@@ -1074,6 +1076,11 @@ let globalRecipes = null; // Menyimpan data resep
                 }
 
                 role = role.toLowerCase(); // Amankan ke huruf kecil
+// AMBIL NAMA ASLI (Jika belum diset, gunakan tebakan dari email)
+                let namaAsli = docRef.data().nama || user.email.split('@')[0].toUpperCase();
+                
+                // Simpan nama di memori sementara agar bisa dipakai tombol absen
+                window.currentUserNama = namaAsli;
 
                 // Jika sukses, buka gerbangnya!
                 document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
@@ -1081,9 +1088,10 @@ let globalRecipes = null; // Menyimpan data resep
                 if (pagePresensi) pagePresensi.classList.add('active');
                 if (navBottom) navBottom.style.display = 'flex';
                 
+                // HEADER SEKARANG MENYAPA NAMA ASLI, BUKAN EMAIL LAGI!
                 const userDisplay = document.getElementById('userDisplay');
                 if (userDisplay) {
-                    userDisplay.innerHTML = `Halo, <b style="color: var(--primary-solid);">${user.email}</b> <span class="badge bg-secondary ms-1">${role.toUpperCase()}</span>`;
+                    userDisplay.innerHTML = `Halo, <b style="color: var(--primary-solid);">${namaAsli}</b> <span class="badge bg-secondary ms-1">${role.toUpperCase()}</span>`;
                 }
 
                 // Munculkan menu bos jika dia Owner
@@ -1128,26 +1136,38 @@ let globalRecipes = null; // Menyimpan data resep
             .catch(error => { Swal.fire('Gagal Masuk', 'Kombinasi email dan sandi salah, atau akun belum terdaftar.', 'error'); });
     }
 
-    // 3. Fungsi Daftar Baru (Menggunakan Pop-up SweetAlert agar rapi)
+    // 3. Fungsi Daftar Baru (Sekarang Minta Nama!)
     function handleRegister() {
         Swal.fire({
             title: 'Daftar Akun Baru',
-            html: `<input id="regEmail" type="email" class="swal2-input" placeholder="Email aktif kamu" style="font-size: 0.9rem; width: 85%; margin: 10px auto; box-sizing: border-box;">
+            html: `<input id="regNama" type="text" class="swal2-input" placeholder="Nama Lengkap Karyawan" style="font-size: 0.9rem; width: 85%; margin: 10px auto; box-sizing: border-box;">
+                   <input id="regEmail" type="email" class="swal2-input" placeholder="Email aktif kamu" style="font-size: 0.9rem; width: 85%; margin: 10px auto; box-sizing: border-box;">
                    <input id="regPass" type="password" class="swal2-input" placeholder="Kata sandi (min 6 karakter)" style="font-size: 0.9rem; width: 85%; margin: 10px auto; box-sizing: border-box;">`,
             confirmButtonText: 'Daftar Sekarang',
             showCancelButton: true,
             cancelButtonText: 'Batal',
             confirmButtonColor: '#1D407A',
             preConfirm: () => {
-                return { email: document.getElementById('regEmail').value, pass: document.getElementById('regPass').value };
+                return { 
+                    nama: document.getElementById('regNama').value.trim(),
+                    email: document.getElementById('regEmail').value.trim(), 
+                    pass: document.getElementById('regPass').value 
+                };
             }
         }).then((res) => {
             if (res.isConfirmed) {
-                if (!res.value.email || res.value.pass.length < 6) return Swal.fire('Gagal', 'Email harus valid dan sandi minimal 6 karakter.', 'error');
+                if (!res.value.nama || !res.value.email || res.value.pass.length < 6) return Swal.fire('Gagal', 'Semua kolom wajib diisi & sandi min 6 karakter.', 'error');
                 
                 Swal.fire({ title: 'Mendaftarkan Akun...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
                 firebase.auth().createUserWithEmailAndPassword(res.value.email, res.value.pass)
-                    .then(() => { Swal.fire('Berhasil!', 'Akun terdaftar dan langsung masuk.', 'success'); })
+                    .then(async () => { 
+                        // SIMPAN NAMA & JABATAN KE FIRESTORE BUKU "USERS"
+                        await db.collection('users').doc(res.value.email).set({
+                            nama: res.value.nama.toUpperCase(),
+                            role: 'pegawai' // Default karyawan baru
+                        });
+                        Swal.fire('Berhasil!', 'Akun terdaftar dan langsung masuk.', 'success'); 
+                    })
                     .catch(error => { Swal.fire('Gagal', error.message, 'error'); });
             }
         });
