@@ -610,16 +610,62 @@
 
     async function loadPemantau() {
         const content = document.getElementById('pemantauContent');
-        content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
+        content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Menyadap CCTV Firestore...</p></div>';
+        
         try {
-            const data = await gasAPI('getAdminDashboardData', { 
-                start: adminFilter.stockDate, end: adminFilter.stockDate, name: "", stockDate: adminFilter.stockDate 
-            });
-            if (!data || !data.stocks) throw new Error("Data pemantau gagal ditarik.");
-            renderStockMonitorGrid(data.stocks);
-        } catch (err) { content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal Render UI: ${err.message}</div>`; }
-    }
+            const dateStr = adminFilter.stockDate;
+            const docRef = await db.collection('laporan_stok').doc(dateStr).get();
+            
+            if (!docRef.exists) {
+                content.innerHTML = `
+                    <div class="filter-box mb-3 shadow-sm">
+                        <label class="small fw-bold mb-2 text-muted">Filter Tanggal Laporan</label>
+                        <div class="d-flex gap-2">
+                            <input type="date" id="adminStockDate" class="form-control form-control-sm" value="${dateStr}" style="border-radius: 10px;">
+                            <button class="btn btn-primary btn-sm" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i> Cek</button>
+                        </div>
+                    </div>
+                    <div class="text-center mt-5 text-muted animate__animated animate__fadeIn">
+                        <i class="bi bi-inboxes-fill d-block mb-3" style="font-size: 3rem; color: #b2bec3;"></i>
+                        <h6 class="fw-bold">Laporan Belum Dibuat</h6>
+                        <small>Belum ada aktivitas stok dari karyawan untuk tanggal ${dateStr}.</small>
+                    </div>`;
+                return;
+            }
 
+            const data = docRef.data();
+            let rawItems = data.items;
+            
+            // LOGIKA PENGGANTI GOOGLE SHEETS (Dihitung otomatis di HP Owner)
+            let processedStocks = rawItems.map(item => {
+                // Hitung estimasi stok berjalan
+                let currentStock = item.akhir !== "" ? item.akhir : (item.awal + item.masuk - item.terbuang);
+                
+                let alertLevel = 0; let status = "AMAN"; let color = "#2ecc71"; // Default Hijau
+                
+                if (currentStock <= 0) {
+                    alertLevel = 2; status = "HABIS"; color = "#e74c3c"; // Merah
+                } else if (currentStock <= 5) { // Kita set batas peringatan "Menipis" jika stok <= 5
+                    alertLevel = 1; status = "MENIPIS"; color = "#feca57"; // Kuning
+                }
+
+                return {
+                    ...item,
+                    currentStock: currentStock,
+                    alertLevel: alertLevel,
+                    status: status,
+                    color: color,
+                    perputaran: `In: ${item.masuk} | Out: ${item.terbuang}`
+                };
+            });
+
+            // Kirim data yang sudah diolah ke fungsi pembuat tampilan
+            renderStockMonitorGrid(processedStocks, data.status, data.operator, data.last_updated);
+            
+        } catch (err) { 
+            content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal Render UI: ${err.message}</div>`; 
+        }
+    }
     // --- RENDER KALKULATOR ---
     function renderKalkulatorPage(recipes) {
         const content = document.getElementById('kalkulatorContent');
@@ -735,7 +781,7 @@
     }
 
     // --- RENDER PANTAU STOK ---
-    function renderStockMonitorGrid(stocks) {
+    function renderStockMonitorGrid(stocks, reportStatus = "Sedang Berjalan", operator = "-", lastUpdated) {
         const content = document.getElementById('pemantauContent');
         if(!stocks || stocks.length === 0) return content.innerHTML = '<p class="text-center text-muted mt-4">Belum ada data stok.</p>';
 
@@ -743,14 +789,29 @@
         const warningCount = stocks.filter(s => s.alertLevel === 1).length;
         const categories = [...new Set(stocks.map(s => s.kategori))];
 
+        // Format waktu terakhir diupdate
+        let timeString = lastUpdated ? lastUpdated.toDate().toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}) : 'Baru saja';
+        let statusBadge = reportStatus === "Tutup Buku" ? `<span class="badge bg-success shadow-sm"><i class="bi bi-check-circle-fill me-1"></i> Tutup Buku</span>` : `<span class="badge bg-warning text-dark shadow-sm"><i class="bi bi-arrow-repeat me-1"></i> Berjalan</span>`;
+
         let html = `
-            <div class="filter-box mb-3">
+            <div class="filter-box mb-3 shadow-sm">
                 <label class="small fw-bold mb-2 text-muted">Filter Tanggal Laporan</label>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 mb-3">
                     <input type="date" id="adminStockDate" class="form-control form-control-sm" value="${adminFilter.stockDate}" style="border-radius: 10px;">
-                    <button class="btn btn-primary btn-sm" style="background:var(--primary-gradient); border:none;" onclick="applyStockFilter()"><i class="bi bi-search"></i> Cek</button>
+                    <button class="btn btn-primary btn-sm" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i> Cek</button>
+                </div>
+                
+                <!-- PANEL INFO REALTIME -->
+                <div class="p-2" style="background: #f8f9fa; border-radius: 10px; font-size: 0.75rem; border: 1px solid #e1e5ee;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted fw-bold">Status Laporan:</span> ${statusBadge}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted fw-bold">Operator Terakhir:</span> <span class="fw-bold" style="color: var(--primary-solid);">${operator} (Update: ${timeString})</span>
+                    </div>
                 </div>
             </div>
+            
             <div class="alert-banner">
                 <div class="alert-box" style="background: linear-gradient(135deg, #ff6b6b, #e74c3c);">
                     <h3 class="mb-0 fw-bold">${criticalCount}</h3><small style="font-size: 0.65rem; font-weight: bold;">RESTOK SEGERA</small>
@@ -764,26 +825,31 @@
         categories.forEach((cat, index) => {
             const items = stocks.filter(s => s.kategori === cat);
             html += `
-                <div class="category-header-wrapper" onclick="toggleCat('cat-${index}')">
+                <div class="category-header-wrapper shadow-sm" onclick="toggleCat('cat-${index}')" style="border-radius: 12px;">
                     <h6 class="stock-category-header"><i class="bi bi-chevron-down me-2" id="icon-cat-${index}" style="transform: rotate(-90deg); display: inline-block;"></i> ${cat}</h6>
                 </div>
                 <div class="stock-grid-container" id="cat-${index}" style="display: none;">
             `;
             
             items.forEach(s => {
-                const akhirDisplay = (s.akhir !== null && s.akhir !== "") ? s.akhir : "-";
+                // Tampilkan Estimasi Live jika Akhir belum diisi
+                const liveStock = s.akhir !== "" ? s.akhir : s.currentStock;
+
                 html += `
-                    <div class="stock-card-mini shadow-sm">
+                    <div class="stock-card-mini shadow-sm" style="border-radius: 16px; border: none;">
                         <div style="position: absolute; top: 15px; bottom: 15px; left: 0; width: 4px; border-radius: 0 4px 4px 0; background: ${s.color};"></div>
-                        <div class="ms-2">
-                           <div class="fw-bold" style="font-size:0.85rem; color: #2d3436; margin-bottom: 4px;">${s.nama}</div>
-                           <span class="badge text-secondary" style="background: #f1f2f6; font-size: 0.6rem; border: 1px solid #e1e5ee;">Satuan: ${s.satuan}</span>
+                        <div class="ms-2 d-flex justify-content-between align-items-start">
+                           <div>
+                               <div class="fw-bold" style="font-size:0.85rem; color: #2d3436; margin-bottom: 4px;">${s.nama}</div>
+                               <span class="badge text-secondary" style="background: #f1f2f6; font-size: 0.6rem; border: 1px solid #e1e5ee;">Satuan: ${s.satuan}</span>
+                           </div>
+                           <div class="badge-perputaran" style="position:static; font-size:0.55rem; background: #eef2fa; color: #667eea; padding: 3px 8px; border-radius: 6px;">${s.perputaran}</div>
                         </div>
                         <div class="row g-2 ms-1 mt-2">
-                            <div class="col-6"><div class="p-2 text-center" style="background: #f8f9fa; border: 1px dashed #cbd5e1; border-radius: 10px;"><span class="d-block fs-5 fw-bold text-dark">${s.awal}</span><span style="font-size:0.55rem; color:#64748b;">Awal</span></div></div>
-                            <div class="col-6"><div class="p-2 d-flex justify-content-between align-items-center" style="background: rgba(46,204,113,0.1); border-radius: 10px;"><div><span style="font-size:0.5rem; color:#27ae60;" class="d-block text-uppercase">Masuk</span><span class="fw-bold text-success">${s.masuk}</span></div><i class="bi bi-arrow-down-circle-fill text-success"></i></div></div>
-                            <div class="col-6"><div class="p-2 text-center" style="background: #f0f4f8; border: 1px solid #94a3b8; border-radius: 10px;"><span class="d-block fs-5 fw-bold text-dark">${akhirDisplay}</span><span style="font-size:0.55rem; color:#475569;">Akhir Fisik</span></div></div>
-                            <div class="col-6"><div class="p-2 d-flex justify-content-between align-items-center" style="background: rgba(231,76,60,0.1); border-radius: 10px;"><div><span style="font-size:0.5rem; color:#c0392b;" class="d-block text-uppercase">Buang</span><span class="fw-bold text-danger">${s.terbuang}</span></div><i class="bi bi-trash3-fill text-danger"></i></div></div>
+                            <div class="col-4"><div class="p-2 text-center" style="background: #f8f9fa; border: 1px dashed #cbd5e1; border-radius: 10px;"><span class="d-block fs-5 fw-bold text-dark">${s.awal}</span><span style="font-size:0.5rem; color:#64748b;">Awal</span></div></div>
+                            <div class="col-4"><div class="p-2 text-center" style="background: rgba(46,204,113,0.1); border-radius: 10px;"><span class="d-block fs-5 fw-bold text-success">${s.masuk}</span><span style="font-size:0.5rem; color:#27ae60;">Masuk</span></div></div>
+                            <div class="col-4"><div class="p-2 text-center" style="background: rgba(231,76,60,0.1); border-radius: 10px;"><span class="d-block fs-5 fw-bold text-danger">${s.terbuang}</span><span style="font-size:0.5rem; color:#c0392b;">Buang</span></div></div>
+                            <div class="col-12 mt-2"><div class="p-2 d-flex justify-content-between align-items-center" style="background: #f0f4f8; border: 1px solid #94a3b8; border-radius: 10px;"><span style="font-size:0.6rem; color:#475569; font-weight:bold; text-transform:uppercase;">Estimasi Stok Terkini:</span><span class="fs-4 fw-bold text-dark">${liveStock}</span></div></div>
                         </div>
                         <div class="text-center mt-2 ms-2" style="font-size: 0.65rem; color: ${s.color}; font-weight: 800; background: ${s.color}15; padding: 6px; border-radius: 8px;">STATUS: ${s.status}</div>
                     </div>
