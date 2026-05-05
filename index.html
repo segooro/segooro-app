@@ -203,10 +203,6 @@
                 </button>
             </div>
         <div class="glass-input-group animate__animated animate__fadeInUp">
-            <div class="mb-3">
-                <label><i class="bi bi-person-fill me-1"></i> Nama Karyawan</label>
-                <select id="employeeName" class="form-select"><option value="">Memuat...</option></select>
-            </div>
             <div class="mb-0">
                 <label><i class="bi bi-clock-fill me-1"></i> Tipe Absen</label>
                 <select id="statusType" class="form-select">
@@ -327,23 +323,36 @@
     
     // --- PRESENSI ---
     function handleAbsen() {
-        const name = document.getElementById('employeeName').value;
+        // 1. Cek siapa yang sedang login di Firebase
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            return Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Sesi kamu telah habis, silakan login ulang.', confirmButtonColor: '#1D407A' });
+        }
+
+        // 2. Ekstrak nama dari email (Misal: siti@segooro.com menjadi "SITI")
+        const name = user.email.split('@')[0].toUpperCase();
+        
+        // Ambil tipe absen (Datang/Pulang) dan tombolnya
         const type = document.getElementById('statusType').value;
         const btn = document.getElementById('btnSubmit');
 
-        if (!name) return Swal.fire({ icon: 'warning', title: 'Pilih nama!', confirmButtonColor: '#1D407A' });
-        
-        btn.disabled = true; btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>...`;
+        // Ubah tombol jadi muter-muter (loading)
+        btn.disabled = true; 
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Menyimpan...`;
 
         navigator.geolocation.getCurrentPosition(async (pos) => {
             try {
+                // Tembak data ke Google Sheets (GAS) menggunakan nama dari email Firebase
                 const res = await gasAPI('submitAttendance', {
                     name: name, type: type, lat: pos.coords.latitude, lng: pos.coords.longitude
                 });
                 
                 btn.disabled = false; btn.innerHTML = "Absen Sekarang";
-                if (res.success) Swal.fire({ icon: 'success', title: 'Berhasil!', text: res.message, confirmButtonColor: '#1D407A' });
-                else Swal.fire({ icon: 'error', title: 'Gagal', text: res.message, confirmButtonColor: '#1D407A' });
+                if (res.success) {
+                    Swal.fire({ icon: 'success', title: 'Berhasil!', text: `Presensi ${type} a/n ${name} tercatat.`, confirmButtonColor: '#1D407A' });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Gagal', text: res.message, confirmButtonColor: '#1D407A' });
+                }
             } catch (err) {
                 btn.disabled = false; btn.innerHTML = "Absen Sekarang";
                 Swal.fire({ icon: 'error', title: 'Koneksi Error', text: err.message, confirmButtonColor: '#1D407A' });
