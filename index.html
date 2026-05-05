@@ -526,26 +526,27 @@
 
     async function loadKalkulator() {
         const content = document.getElementById('kalkulatorContent');
-        if (!globalRecipes) {
-            content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
-            try {
-                globalRecipes = await gasAPI('getRecipesData');
-                renderKalkulatorPage(globalRecipes);
-            } catch (err) { content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal memuat resep: ${err.message}</div>`; }
-        } else { renderKalkulatorPage(globalRecipes); }
+        if (!globalRecipes) content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
+        
+        try {
+            const recipes = await fetchRecipesFromFirestore(); // Panggil fungsi Firestore baru
+            renderKalkulatorPage(recipes);
+        } catch (err) { 
+            content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal memuat resep: ${err.message}</div>`; 
+        }
     }
 
     async function loadBelanja() {
         const content = document.getElementById('belanjaContent');
-        if (!globalRecipes) {
-            content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
-            try {
-                globalRecipes = await gasAPI('getRecipesData');
-                renderBelanjaPage(globalRecipes);
-            } catch (err) { content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal memuat resep: ${err.message}</div>`; }
-        } else { renderBelanjaPage(globalRecipes); }
+        if (!globalRecipes) content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
+        
+        try {
+            const recipes = await fetchRecipesFromFirestore(); // Panggil fungsi Firestore baru
+            renderBelanjaPage(recipes);
+        } catch (err) { 
+            content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal memuat resep: ${err.message}</div>`; 
+        }
     }
-
     function applyStockFilter() {
         adminFilter.stockDate = document.getElementById('adminStockDate').value;
         loadPemantau();
