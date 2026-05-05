@@ -157,6 +157,8 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+    <!-- TAMBAHKAN BARIS INI UNTUK FIRESTORE: -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -249,20 +251,26 @@
         <div id="adminContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
 <!-- BOTTOM NAVIGATION -->
-        <nav class="bottom-nav">
-            <a class="nav-item active" id="nav-presensi" onclick="handleNav('pagePresensi')">
-                <i class="bi bi-house-door-fill"></i>
-                <span>Presensi</span>
-            </a>
-            <a class="nav-item" id="nav-stok" onclick="handleNav('pageStok')">
-                <i class="bi bi-box-seam-fill"></i>
-                <span>Stok</span>
-            </a>
-            <a class="nav-item" id="nav-admin" onclick="handleNav('pageAdmin')">
-                <i class="bi bi-shield-lock-fill"></i>
-                <span>Admin</span>
-            </a>
-        </nav>
+    <div class="bottom-nav">
+        <!-- Menu Semua Orang (Pegawai & Owner) -->
+        <a href="#" onclick="switchPage('pagePresensi')" class="nav-item">
+            <i class="bi bi-clock-history"></i><span>Presensi</span>
+        </a>
+        <a href="#" onclick="switchPage('pageStok')" class="nav-item">
+            <i class="bi bi-box-seam"></i><span>Input Stok</span>
+        </a>
+
+        <!-- Menu Khusus Owner (Perhatikan tambahan class "owner-only" dan "display: none" di bawah ini) -->
+        <a href="#" onclick="switchPage('pageKalkulator')" class="nav-item owner-only" style="display: none;">
+            <i class="bi bi-calculator"></i><span>Kalkulator</span>
+        </a>
+        <a href="#" onclick="switchPage('pagePemantau')" class="nav-item owner-only" style="display: none;">
+            <i class="bi bi-graph-up"></i><span>Pemantau</span>
+        </a>
+        <a href="#" onclick="switchPage('pageKeuangan')" class="nav-item owner-only" style="display: none;">
+            <i class="bi bi-wallet2"></i><span>Keuangan</span>
+        </a>
+    </div>
 </div>
 
 <script>
@@ -282,6 +290,7 @@
     // Jalankan Firebase
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
+    const db = firebase.firestore();
 // ==========================================
     // (PWA) KONFIGURASI API & FETCH ENGINE
     // ==========================================
@@ -1033,22 +1042,50 @@ let globalRecipes = null; // Menyimpan data resep
     // LOGIKA AUTENTIKASI FIREBASE (LOGIN/REGISTER)
     // ==========================================
 
-    // 1. Pemantau Sesi (Otomatis cek apakah user sudah login atau belum)
-    firebase.auth().onAuthStateChanged((user) => {
+    // 1. Pemantau Sesi & Pengecek Jabatan (Role)
+    firebase.auth().onAuthStateChanged(async (user) => {
         const navBottom = document.querySelector('.bottom-nav');
+        
         if (user) {
-            // JIKA SUDAH LOGIN: Sembunyikan halaman login, tampilkan PWA
-            document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
-            document.getElementById('pagePresensi').classList.add('active');
-            if (navBottom) navBottom.style.display = 'flex'; // Munculkan menu bawah
+            // Tampilkan loading sebentar selagi aplikasi mengecek jabatan ke server
+            Swal.fire({ title: 'Memeriksa Akses...', text: 'Mohon tunggu sebentar.', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+
+            try {
+                // Tanya ke Firestore: "Apakah email ini ada di tabel users?"
+                const docRef = await db.collection('users').doc(user.email).get();
+                let role = 'pegawai'; // Anggap saja pegawai sebagai default
+                
+                if (docRef.exists) {
+                    role = docRef.data().role; // Ambil jabatannya (owner/pegawai)
+                }
+
+                Swal.close(); // Tutup loading
+
+                // Tampilkan halaman presensi sebagai halaman utama
+                document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
+                document.getElementById('pagePresensi').classList.add('active');
+                if (navBottom) navBottom.style.display = 'flex';
+                
+                // Tampilkan email user di header presensi
+                document.getElementById('userDisplay').innerHTML = `Halo, <b style="color: var(--primary-solid);">${user.email}</b> <span class="badge bg-secondary ms-1">${role.toUpperCase()}</span>`;
+
+                // LOGIKA SAKTI: Munculkan menu rahasia jika dia Owner
+                const ownerMenus = document.querySelectorAll('.owner-only');
+                if (role === 'owner') {
+                    ownerMenus.forEach(menu => menu.style.display = 'flex'); // Munculkan menu bos
+                } else {
+                    ownerMenus.forEach(menu => menu.style.display = 'none'); // Sembunyikan dari pegawai
+                }
+
+            } catch (err) {
+                Swal.fire('Error', 'Gagal memeriksa jabatan: ' + err.message, 'error');
+            }
             
-            // Tampilkan email user di halaman presensi
-            document.getElementById('userDisplay').innerHTML = `Halo, <b style="color: var(--primary-solid);">${user.email}</b>`;
         } else {
             // JIKA BELUM LOGIN / LOGOUT: Paksa ke halaman login
             document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
             document.getElementById('pageLogin').classList.add('active');
-            if (navBottom) navBottom.style.display = 'none'; // Sembunyikan menu bawah
+            if (navBottom) navBottom.style.display = 'none';
         }
     });
 
