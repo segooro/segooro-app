@@ -216,6 +216,12 @@
         <div class="px-1">
             <button id="btnSubmit" class="btn-submit animate__animated animate__fadeInUp animate__delay-1s" onclick="handleAbsen()">Absen Sekarang</button>
         </div>
+        <!-- TOMBOL NINJA (Hanya Muncul di HP Owner) -->
+    <div class="px-1 owner-only mb-3" style="display:none;">
+        <button class="btn btn-warning w-100 fw-bold shadow-sm" style="border-radius: 15px; padding: 12px;" onclick="sedotDataDariSheets()">
+            <i class="bi bi-cloud-download-fill me-2"></i> Jalankan Jalur Ninja (Sinkron)
+        </button>
+    </div>
     </div>
 
     <div id="pageStok" class="view-page">
@@ -474,20 +480,49 @@
         }
     }
 
-    function showPage(pageId) {
+    function switchPage(pageId) {
+        // 1. Cek apakah menu yang diklik adalah menu rahasia Owner
+        const targetMenu = document.querySelector(`[onclick="switchPage('${pageId}')"]`);
+        
+        if (targetMenu && targetMenu.classList.contains('owner-only')) {
+            // Jika menu Owner diklik, minta PIN dulu
+            Swal.fire({
+                title: 'Akses Terbatas',
+                input: 'password',
+                inputPlaceholder: 'Masukkan PIN Admin',
+                confirmButtonText: 'Buka Menu',
+                showCancelButton: true,
+                confirmButtonColor: '#1D407A'
+            }).then((result) => {
+                if (result.isConfirmed && result.value === "123321") {
+                    executePageSwitch(pageId);
+                } else if (result.isConfirmed) {
+                    Swal.fire('Gagal', 'PIN Salah!', 'error');
+                }
+            });
+        } else {
+            // Jika menu biasa (Presensi/Stok), langsung pindah
+            executePageSwitch(pageId);
+        }
+    }
+
+    function executePageSwitch(pageId) {
         // Sembunyikan semua halaman
         document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
-        // Tampilkan halaman yang dipilih
-        document.getElementById(pageId).classList.add('active');
         
-        // Update warna tombol di Bottom Nav
+        // Tampilkan halaman tujuan (Jika ID tidak ditemukan, kita arahkan ke Admin sebagai cadangan)
+        const targetPage = document.getElementById(pageId) || document.getElementById('pageAdmin');
+        if (targetPage) targetPage.classList.add('active');
+        
+        // Update warna icon di Bottom Nav
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        if(pageId === 'pagePresensi') document.getElementById('nav-presensi').classList.add('active');
-        if(pageId === 'pageStok') document.getElementById('nav-stok').classList.add('active');
-        if(pageId === 'pageAdmin') document.getElementById('nav-admin').classList.add('active');
+        const activeNav = document.querySelector(`[onclick="switchPage('${pageId}')"]`);
+        if (activeNav) activeNav.classList.add('active');
 
-        // Render otomatis jika masuk halaman stok
-        if (pageId === 'pageStok') loadStockItems();
+        // Jika masuk tab admin tertentu, jalankan fungsinya
+        if (pageId === 'pageKalkulator') switchAdminTab('kalkulator');
+        if (pageId === 'pagePemantau') switchAdminTab('stok'); // Pemantau stok
+        if (pageId === 'pageKeuangan') switchAdminTab('payroll'); // Ringkasan gaji
     }
 
     function openAdmin() {
