@@ -308,18 +308,13 @@
     }
 
     // --- INISIALISASI ---
-    window.onload = async () => {
-        document.getElementById('stockDate').valueAsDate = new Date();
-        try {
-            const names = await gasAPI('getEmployeeNames');
-            const select = document.getElementById('employeeName');
-            select.innerHTML = '<option value="">-- Pilih Nama --</option>';
-            names.forEach(n => select.innerHTML += `<option value="${n}">${n}</option>`);
-        } catch (e) {
-            Swal.fire({ toast:true, position:'top', icon:'error', title:'Gagal memuat nama', showConfirmButton:false, timer:2000 });
+    window.onload = () => {
+        // Hanya sisakan pengaturan tanggal default untuk input stok
+        const stockDateInput = document.getElementById('stockDate');
+        if (stockDateInput) {
+            stockDateInput.valueAsDate = new Date();
         }
     };
-
     
     // --- PRESENSI ---
     function handleAbsen() {
