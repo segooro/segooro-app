@@ -339,70 +339,76 @@
     }
 
     // ==========================================
-    // INPUT STOK HARIAN (ANTI-BLANK SYSTEM)
+    // INPUT STOK HARIAN (100% FIRESTORE SUPER CEPAT)
     // ==========================================
     let currentStockData = [];
+    
     async function loadStockItems() {
         const listContainer = document.getElementById('stockList');
-        listContainer.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Menyiapkan form stok...</p></div>';
+        listContainer.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Membuka laci Firestore...</p></div>';
         
         let dateInput = document.getElementById('stockDate');
         if (!dateInput.value) dateInput.valueAsDate = new Date();
         const dateStr = dateInput.value;
 
         try {
-            // Pertama, coba tarik dari GAS agar data 'awal' terisi
-            const data = await gasAPI('getStockData', { dateStr: dateStr });
-            if (!data || data.length === 0) throw new Error("GAS Kosong");
-            
-            currentStockData = data.map(item => { item.akhir = ""; return item; });
-            renderStockList(); 
-        } catch (err) {
-            console.log("GAS Gagal/Lambat, Mengaktifkan Cadangan Firestore Ninja...");
-            try {
-                // BACKUP: Jika GAS gagal/lambat, panggil 'master_stok' di Firestore agar halaman tidak blank!
+            // 1. Cek apakah laporan HARI INI sudah pernah disave?
+            const docRef = await db.collection('laporan_stok').doc(dateStr).get();
+
+            if (docRef.exists) {
+                // Jika sudah ada, tampilkan apa yang sudah diinput sebelumnya
+                currentStockData = docRef.data().items;
+            } else {
+                // Jika belum ada laporan hari ini, kita buat form baru dari 'master_stok'
+                
+                // Cari tahu tanggal KEMARIN untuk narik "Stok Awal" otomatis
+                let d = new Date(dateStr);
+                d.setDate(d.getDate() - 1);
+                let yesterdayStr = d.toISOString().split('T')[0];
+                
+                // Intip laporan kemarin
+                const yesterdayRef = await db.collection('laporan_stok').doc(yesterdayStr).get();
+                let yesterdayData = {};
+                if (yesterdayRef.exists) {
+                    yesterdayRef.data().items.forEach(item => {
+                        yesterdayData[item.nama] = item.akhir; // Simpan stok akhir kemarin
+                    });
+                }
+
+                // Ambil daftar barang dari master_stok
                 const snapshot = await db.collection('master_stok').get();
                 let fbData = [];
                 snapshot.forEach(doc => {
                     const d = doc.data();
-                    fbData.push({ nama: d.nama, kategori: d.kategori, satuan: d.satuan, awal: 0, masuk: 0, terbuang: 0, akhir: "" });
+                    // Jadikan stok akhir kemarin sebagai stok awal hari ini (jika tidak ada, anggap 0)
+                    let awalVal = yesterdayData[d.nama] || 0; 
+                    
+                    fbData.push({ nama: d.nama, kategori: d.kategori, satuan: d.satuan, awal: awalVal, masuk: 0, terbuang: 0, akhir: "" });
                 });
                 
-                if(fbData.length === 0) throw new Error("Data master stok di Firestore kosong.");
+                if(fbData.length === 0) throw new Error("Data master stok kosong. Harap Jalur Ninja lagi.");
                 currentStockData = fbData;
-                renderStockList();
-            } catch (fbErr) {
-                listContainer.innerHTML = `<div class="alert alert-danger m-3 text-center small"><b>Gagal Memuat:</b><br>${fbErr.message}</div>`;
             }
+            
+            renderStockList(); 
+            
+        } catch (err) {
+            listContainer.innerHTML = `<div class="alert alert-danger m-3 text-center small"><b>Gagal Memuat:</b><br>${err.message}</div>`;
         }
     }
 
-    async function submitIncrement(index, type) {
+    // Fungsi Tambah Instan (Tanpa Loading API!)
+    function submitIncrement(index, type) {
         const inputElem = document.getElementById(`inp-${type}-${index}`);
         const val = parseFloat(inputElem.value);
         if (isNaN(val) || val <= 0) return Swal.fire({ toast: true, position: 'top', icon: 'warning', title: 'Masukkan angka!', timer: 1500, showConfirmButton: false });
 
-        const itemName = currentStockData[index].nama;
-        const dateStr = document.getElementById('stockDate').value;
-        const btn = inputElem.nextElementSibling;
-        const originalIcon = btn.innerHTML;
+        // Langsung tambahkan di memori HP, secepat kilat!
+        currentStockData[index][type] += val;
+        document.getElementById(`tot-${type}-${index}`).innerText = currentStockData[index][type];
+        inputElem.value = "";
         
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm" style="width: 1rem; height: 1rem;"></span>`;
-        btn.disabled = true; inputElem.disabled = true;
-
-        try {
-            const res = await gasAPI('addIndividualStockIncrement', { dateStr: dateStr, itemName: itemName, fieldType: type, incrementValue: val });
-            btn.innerHTML = originalIcon; btn.disabled = false; inputElem.disabled = false;
-            if (res.success) {
-                currentStockData[index][type] = res.newTotal;
-                document.getElementById(`tot-${type}-${index}`).innerText = res.newTotal;
-                inputElem.value = "";
-                Swal.fire({ toast: true, position: 'top', showConfirmButton: false, timer: 1500, icon: 'success', title: `+${val} ditambahkan` });
-            }
-        } catch (err) {
-            btn.innerHTML = originalIcon; btn.disabled = false; inputElem.disabled = false;
-            Swal.fire({ icon: 'error', title: 'Gagal', text: err.message, confirmButtonColor: '#1D407A' });
-        }
+        Swal.fire({ toast: true, position: 'top', showConfirmButton: false, timer: 1000, icon: 'success', title: `+${val} ditambahkan ke Draf` });
     }
 
     function updateVal(index, field, val) {
@@ -415,6 +421,7 @@
         currentStockData.forEach((item, index) => {
             const row = document.getElementById(`stockRow-${index}`);
             row.classList.remove('error-highlight');
+            // Cek jika stok akhir belum diisi
             if (item.akhir === "") { hasError = true; missing.push(item.nama); row.classList.add('error-highlight'); }
         });
 
@@ -425,19 +432,25 @@
         }
 
         const btn = document.getElementById('btnSaveStock');
-        btn.disabled = true; btn.innerHTML = "Menyimpan...";
-        
+        btn.disabled = true; btn.innerHTML = "Menyimpan ke Firebase...";
+        const dateStr = document.getElementById('stockDate').value;
+        const operatorName = window.currentUserNama || "Pegawai";
+
         try {
-            const res = await gasAPI('saveStockReport', { dataArray: currentStockData, dateStr: document.getElementById('stockDate').value });
+            // Tembak sekaligus dalam 1 dokumen ke koleksi 'laporan_stok' Firestore
+            await db.collection('laporan_stok').doc(dateStr).set({
+                tanggal: dateStr,
+                operator: operatorName,
+                last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+                items: currentStockData
+            });
+
             btn.disabled = false; btn.innerHTML = "Simpan Laporan";
-            if(res.success) {
-                Swal.fire({ icon: 'success', title: 'Tersimpan!', confirmButtonColor: '#1D407A' });
-                // Reset form stok setelah sukses
-                loadStockItems();
-            }
+            Swal.fire({ icon: 'success', title: 'Tersimpan Instan!', confirmButtonColor: '#1D407A' });
+            loadStockItems(); // Refresh tampilan
         } catch (err) {
             btn.disabled = false; btn.innerHTML = "Simpan Laporan";
-            Swal.fire({ icon: 'error', title: 'Error', text: err.message, confirmButtonColor: '#1D407A' });
+            Swal.fire({ icon: 'error', title: 'Error Server', text: err.message, confirmButtonColor: '#1D407A' });
         }
     }
 
@@ -446,11 +459,6 @@
         const container = document.getElementById(id); const icon = document.getElementById('icon-' + id);
         if (container.style.display === 'none') { container.style.display = 'block'; icon.style.transform = 'rotate(0deg)'; } 
         else { container.style.display = 'none'; icon.style.transform = 'rotate(-90deg)'; }
-    }
-    function toggleCat(id) {
-        const container = document.getElementById(id); const badges = document.getElementById('badges-' + id); const icon = document.getElementById('icon-' + id);
-        if (container.style.display === 'none') { container.style.display = 'grid'; badges.style.display = 'none'; icon.style.transform = 'rotate(0deg)'; } 
-        else { container.style.display = 'none'; badges.style.display = 'flex'; icon.style.transform = 'rotate(-90deg)'; }
     }
 
     function renderStockList() {
