@@ -203,6 +203,14 @@
         <div id="pemantauContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
 
+    <!-- HALAMAN PRESENSI & GAJI (Owner Only) -->
+    <div id="pagePresensiGaji" class="view-page">
+        <div class="header-profile">
+            <div class="greeting"><h1>Rekap,</h1><p>PRESENSI & GAJI</p></div>
+        </div>
+        <div id="presensiGajiContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
+    </div>
+
     <!-- HALAMAN KEUANGAN (Semua) -->
     <div id="pageKeuangan" class="view-page">
         <div class="header-profile">
@@ -233,6 +241,9 @@
         </a>
 
         <!-- OWNER ONLY -->
+        <a href="javascript:void(0)" id="nav-pagePresensiGaji" onclick="switchPage('pagePresensiGaji')" class="nav-item owner-only" style="display: none;">
+            <i class="bi bi-people-fill"></i><span>Pegawai</span>
+        </a>
         <a href="javascript:void(0)" id="nav-pageKalkulator" onclick="switchPage('pageKalkulator')" class="nav-item owner-only" style="display: none;">
             <i class="bi bi-calculator"></i><span>Kalkulator</span>
         </a>
@@ -300,6 +311,7 @@
         if (pageId === 'pageKalkulator') loadKalkulator();
         if (pageId === 'pageBelanja') loadBelanja();
         if (pageId === 'pagePemantau') loadPemantau();
+        if (pageId === 'pagePresensiGaji') loadPresensiGaji();
     }
 
     // ==========================================
@@ -483,6 +495,7 @@
             Swal.fire({ icon: 'error', title: 'Error Server', text: err.message, confirmButtonColor: '#1D407A' });
         }
     }
+
     // FUNGSI TOGGLE ACCORDION STOK
     function toggleInputCat(id) {
         const container = document.getElementById(id); const icon = document.getElementById('icon-' + id);
@@ -567,11 +580,17 @@
         listContainer.innerHTML = html;
     }
 
-   // ==========================================
+    // ==========================================
     // MENU OWNER (KALKULATOR & BELANJA & PANTAU STOK)
     // ==========================================
     let globalRecipes = null;
-    let adminFilter = { stockDate: new Date().toISOString().split('T')[0] };
+    let now = new Date();
+    let adminFilter = { 
+        start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
+        end: now.toISOString().split('T')[0],
+        name: "",
+        stockDate: now.toISOString().split('T')[0] 
+    };
 
     // FUNGSI BARU: Mengambil resep super cepat dari Firestore
     async function fetchRecipesFromFirestore() {
@@ -683,6 +702,7 @@
             content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal Render UI: ${err.message}</div>`; 
         }
     }
+
     // --- RENDER KALKULATOR ---
     function renderKalkulatorPage(recipes) {
         const content = document.getElementById('kalkulatorContent');
@@ -878,6 +898,123 @@
     }
 
     // ==========================================
+    // MENU PRESENSI & GAJI (OWNER ONLY)
+    // ==========================================
+    async function loadPresensiGaji() {
+        const isOwner = document.querySelector('.owner-only').style.display !== 'none';
+        if (!isOwner) return; 
+
+        const content = document.getElementById('presensiGajiContent');
+        content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Menarik data gaji & presensi...</p></div>';
+
+        try {
+            const data = await gasAPI('getAdminDashboardData', { 
+                start: adminFilter.start, end: adminFilter.end, name: adminFilter.name, stockDate: adminFilter.stockDate 
+            });
+            if (!data) throw new Error("Data kosong dari server.");
+            renderPayrollPage(data);
+        } catch (err) {
+            content.innerHTML = `<div class="alert alert-danger m-3 small">Gagal memuat: ${err.message}</div>`;
+        }
+    }
+
+    function applyAdminFilter() {
+        adminFilter.name = document.getElementById('filterName').value;
+        adminFilter.start = document.getElementById('adminStart').value;
+        adminFilter.end = document.getElementById('adminEnd').value;
+        loadPresensiGaji(); 
+    }
+
+    function renderPayrollPage(data) {
+        const content = document.getElementById('presensiGajiContent');
+        let html = `
+            <div class="filter-box shadow-sm mb-3" style="border-left: 5px solid var(--primary-solid);">
+                <label class="small fw-bold mb-2 text-muted">Filter Periode & Karyawan</label>
+                <select id="filterName" class="form-select form-select-sm mb-2" style="border-radius: 10px;">
+                    <option value="">-- Semua Karyawan --</option>
+                    ${data.employeeNames.map(n => `<option value="${n}" ${adminFilter.name === n ? 'selected' : ''}>${n}</option>`).join('')}
+                </select>
+                <div class="row g-2">
+                    <div class="col-5"><input type="date" id="adminStart" class="form-control form-control-sm" value="${adminFilter.start}" style="border-radius: 10px;"></div>
+                    <div class="col-5"><input type="date" id="adminEnd" class="form-control form-control-sm" value="${adminFilter.end}" style="border-radius: 10px;"></div>
+                    <div class="col-2"><button class="btn btn-primary btn-sm w-100" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyAdminFilter()"><i class="bi bi-search"></i></button></div>
+                </div>
+            </div>
+
+            <h6 class="fw-bold mb-3 small text-primary px-1">Ringkasan Gaji Periode Ini</h6>
+            <div class="mb-4">
+        `;
+
+        if (data.payrollSummary.length === 0) {
+            html += `<p class="small text-muted text-center">Tidak ada data di periode ini.</p>`;
+        } else {
+            data.payrollSummary.forEach(s => {
+                html += `
+                    <div class="p-3 mb-2 shadow-sm bg-white animate__animated animate__fadeInUp" style="border-radius: 15px; border-left: 5px solid #2ecc71;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div><p class="mb-0 fw-bold text-dark">${s.nama}</p><small class="text-muted">${s.totalJam} Jam Kerja</small></div>
+                            <div class="text-end text-success fw-bold fs-6">Rp ${Number(s.totalGaji).toLocaleString('id-ID')}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        html += `</div>
+            <h6 class="fw-bold mb-3 small text-primary px-1">Riwayat Presensi (Maks 30 Hari)</h6>
+            <div class="table-container shadow-sm bg-white animate__animated animate__fadeIn">
+                <table class="table table-sm align-middle mb-0">
+                    <thead style="border-bottom: 2px solid #f1f2f6;"><tr><th class="text-muted">Tgl</th><th class="text-muted">Nama</th><th class="text-muted">Jam</th><th class="text-muted">Tot</th><th class="text-muted"><i class="bi bi-pencil"></i></th></tr></thead>
+                    <tbody>
+        `;
+
+        data.recentLogs.forEach(l => {
+            html += `
+                <tr style="border-bottom: 1px solid #f8f9fa;">
+                    <td class="text-muted" style="font-size: 0.7rem;">${l.tanggal.split('/')[0]}/${l.tanggal.split('/')[1]}</td>
+                    <td class="fw-bold text-dark" style="font-size: 0.75rem;">${l.nama}</td>
+                    <td style="font-size: 0.7rem;">${l.masuk} - ${l.pulang || '..'}</td>
+                    <td class="text-primary fw-bold" style="font-size: 0.75rem;">${l.totalJam}</td>
+                    <td>
+                        <button class="btn btn-sm btn-light text-primary shadow-sm" style="border-radius: 8px; padding: 2px 8px;" onclick="editLog('${l.id}', '${l.masuk}', '${l.pulang}')"><i class="bi bi-pencil"></i></button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table></div>`;
+        content.innerHTML = html;
+    }
+
+    function editLog(id, masuk, pulang) {
+        Swal.fire({
+            title: 'Edit Jam Kerja',
+            html: `<label class="small d-block text-start mb-1 fw-bold text-muted">Jam Datang</label>
+                   <input id="editIn" type="time" class="swal2-input mt-0 mb-3" value="${masuk}">
+                   <label class="small d-block text-start mb-1 fw-bold text-muted">Jam Pulang</label>
+                   <input id="editOut" type="time" class="swal2-input mt-0" value="${pulang === '..' ? '' : pulang}">`,
+            confirmButtonText: 'Simpan',
+            showCancelButton: true,
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#1D407A',
+            preConfirm: () => { 
+                return { in: document.getElementById('editIn').value, out: document.getElementById('editOut').value }; 
+            }
+        }).then((r) => {
+            if(r.isConfirmed) {
+                Swal.fire({title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() }});
+                gasAPI('updateAttendanceLog', { id: id, in: r.value.in, out: r.value.out })
+                .then(res => {
+                    if(res.success) {
+                        Swal.fire('Berhasil!', 'Data telah diperbarui.', 'success'); 
+                        loadPresensiGaji(); 
+                    } else { Swal.fire('Gagal', res.message, 'error'); }
+                }).catch(err => { Swal.fire('Error', err.message, 'error'); });
+            }
+        });
+    }
+
+    // ==========================================
     // LOGIKA AUTENTIKASI (LOGIN/REGISTER/LOGOUT)
     // ==========================================
     firebase.auth().onAuthStateChanged(async (user) => {
@@ -961,7 +1098,6 @@
             if (result.isConfirmed) firebase.auth().signOut(); 
         });
     }
-    
 </script>
 
 </body>
