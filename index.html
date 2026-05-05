@@ -325,48 +325,51 @@
         }
     };
     
-    // --- PRESENSI ---
+    // --- PRESENSI (FIRESTORE VERSION) ---
     function handleAbsen() {
-        // 1. Cek siapa yang sedang login di Firebase
         const user = firebase.auth().currentUser;
         if (!user) {
             return Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Sesi kamu telah habis, silakan login ulang.', confirmButtonColor: '#1D407A' });
         }
 
-        // 2. Ekstrak nama dari email (Misal: siti@segooro.com menjadi "SITI")
         const name = user.email.split('@')[0].toUpperCase();
-        
-        // Ambil tipe absen (Datang/Pulang) dan tombolnya
         const type = document.getElementById('statusType').value;
         const btn = document.getElementById('btnSubmit');
 
-        // Ubah tombol jadi muter-muter (loading)
         btn.disabled = true; 
         btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Menyimpan...`;
 
         navigator.geolocation.getCurrentPosition(async (pos) => {
             try {
-                // Tembak data ke Google Sheets (GAS) menggunakan nama dari email Firebase
-                const res = await gasAPI('submitAttendance', {
-                    name: name, type: type, lat: pos.coords.latitude, lng: pos.coords.longitude
+                // 1. Siapkan waktu saat ini
+                const now = new Date();
+                const tanggalStr = now.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'}); // Hasil: 05/05/2026
+                const waktuStr = now.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}); // Hasil: 13:30
+
+                // 2. Tembak data LANGSUNG ke koleksi 'presensi' di Firestore
+                await db.collection('presensi').add({
+                    nama: name,
+                    email: user.email,
+                    tipe: type, // Datang / Pulang
+                    tanggal: tanggalStr,
+                    waktu: waktuStr,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(), // Waktu absolut server Google
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude
                 });
                 
                 btn.disabled = false; btn.innerHTML = "Absen Sekarang";
-                if (res.success) {
-                    Swal.fire({ icon: 'success', title: 'Berhasil!', text: `Presensi ${type} a/n ${name} tercatat.`, confirmButtonColor: '#1D407A' });
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Gagal', text: res.message, confirmButtonColor: '#1D407A' });
-                }
+                Swal.fire({ icon: 'success', title: 'Berhasil!', text: `Presensi ${type} a/n ${name} tercatat di database!`, confirmButtonColor: '#1D407A' });
+                
             } catch (err) {
                 btn.disabled = false; btn.innerHTML = "Absen Sekarang";
-                Swal.fire({ icon: 'error', title: 'Koneksi Error', text: err.message, confirmButtonColor: '#1D407A' });
+                Swal.fire({ icon: 'error', title: 'Gagal Menyimpan', text: err.message, confirmButtonColor: '#1D407A' });
             }
         }, (err) => {
             btn.disabled = false; btn.innerHTML = "Absen Sekarang";
-            Swal.fire({ icon: 'info', title: 'GPS Mati', text: 'Aktifkan lokasi di HP Anda.', confirmButtonColor: '#1D407A' });
+            Swal.fire({ icon: 'info', title: 'GPS Mati', text: 'Tolong izinkan akses lokasi di HP kamu ya.', confirmButtonColor: '#1D407A' });
         }, { enableHighAccuracy: true });
     }
-
     // --- STOK HARIAN (KARYAWAN) ---
     let currentStockData = [];
     async function loadStockItems() {
