@@ -263,26 +263,26 @@
         <div id="adminContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
 <!-- BOTTOM NAVIGATION -->
-    <div class="bottom-nav">
-        <!-- Menu Semua Orang (Pegawai & Owner) -->
-        <a href="#" onclick="switchPage('pagePresensi')" class="nav-item">
-            <i class="bi bi-clock-history"></i><span>Presensi</span>
-        </a>
-        <a href="#" onclick="switchPage('pageStok')" class="nav-item">
-            <i class="bi bi-box-seam"></i><span>Input Stok</span>
-        </a>
+<div class="bottom-nav">
+    <!-- Menu Semua Orang (Pegawai & Owner) -->
+    <a href="javascript:void(0)" id="nav-pagePresensi" onclick="switchPage('pagePresensi')" class="nav-item">
+        <i class="bi bi-clock-history"></i><span>Presensi</span>
+    </a>
+    <a href="javascript:void(0)" id="nav-pageStok" onclick="switchPage('pageStok')" class="nav-item">
+        <i class="bi bi-box-seam"></i><span>Input Stok</span>
+    </a>
 
-        <!-- Menu Khusus Owner (Perhatikan tambahan class "owner-only" dan "display: none" di bawah ini) -->
-        <a href="#" onclick="switchPage('pageKalkulator')" class="nav-item owner-only" style="display: none;">
-            <i class="bi bi-calculator"></i><span>Kalkulator</span>
-        </a>
-        <a href="#" onclick="switchPage('pagePemantau')" class="nav-item owner-only" style="display: none;">
-            <i class="bi bi-graph-up"></i><span>Pemantau</span>
-        </a>
-        <a href="#" onclick="switchPage('pageKeuangan')" class="nav-item owner-only" style="display: none;">
-            <i class="bi bi-wallet2"></i><span>Keuangan</span>
-        </a>
-    </div>
+    <!-- Menu Khusus Owner -->
+    <a href="javascript:void(0)" id="nav-pageKalkulator" onclick="switchPage('pageKalkulator')" class="nav-item owner-only" style="display: none;">
+        <i class="bi bi-calculator"></i><span>Kalkulator</span>
+    </a>
+    <a href="javascript:void(0)" id="nav-pagePemantau" onclick="switchPage('pagePemantau')" class="nav-item owner-only" style="display: none;">
+        <i class="bi bi-graph-up"></i><span>Pemantau</span>
+    </a>
+    <a href="javascript:void(0)" id="nav-pageKeuangan" onclick="switchPage('pageKeuangan')" class="nav-item owner-only" style="display: none;">
+        <i class="bi bi-wallet2"></i><span>Keuangan</span>
+    </a>
+</div>
 </div>
 
 <script>
