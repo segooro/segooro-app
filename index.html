@@ -339,81 +339,115 @@
     }
 
     // ==========================================
-    // INPUT STOK HARIAN (100% FIRESTORE SUPER CEPAT)
+    // INPUT STOK HARIAN (PILIHAN B: REAL-TIME FIRESTORE)
     // ==========================================
     let currentStockData = [];
     
+    // FUNGSI BARU: Mesin Sinkronisasi Instan ke Server Owner
+    async function syncToFirebase(dateStr) {
+        await db.collection('laporan_stok').doc(dateStr).update({
+            last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+            items: currentStockData
+        });
+    }
+
     async function loadStockItems() {
         const listContainer = document.getElementById('stockList');
-        listContainer.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Membuka laci Firestore...</p></div>';
+        listContainer.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Menghubungkan ke Server Live...</p></div>';
         
         let dateInput = document.getElementById('stockDate');
         if (!dateInput.value) dateInput.valueAsDate = new Date();
         const dateStr = dateInput.value;
 
         try {
-            // 1. Cek apakah laporan HARI INI sudah pernah disave?
             const docRef = await db.collection('laporan_stok').doc(dateStr).get();
 
             if (docRef.exists) {
-                // Jika sudah ada, tampilkan apa yang sudah diinput sebelumnya
+                // Ambil data dari server
                 currentStockData = docRef.data().items;
+                renderStockList();
             } else {
-                // Jika belum ada laporan hari ini, kita buat form baru dari 'master_stok'
-                
-                // Cari tahu tanggal KEMARIN untuk narik "Stok Awal" otomatis
+                // JIKA HARI INI BELUM ADA LAPORAN:
+                // 1. Cek stok akhir kemarin
                 let d = new Date(dateStr);
                 d.setDate(d.getDate() - 1);
                 let yesterdayStr = d.toISOString().split('T')[0];
                 
-                // Intip laporan kemarin
                 const yesterdayRef = await db.collection('laporan_stok').doc(yesterdayStr).get();
                 let yesterdayData = {};
                 if (yesterdayRef.exists) {
-                    yesterdayRef.data().items.forEach(item => {
-                        yesterdayData[item.nama] = item.akhir; // Simpan stok akhir kemarin
-                    });
+                    yesterdayRef.data().items.forEach(item => { yesterdayData[item.nama] = item.akhir; });
                 }
 
-                // Ambil daftar barang dari master_stok
+                // 2. Bentuk draf hari ini
                 const snapshot = await db.collection('master_stok').get();
                 let fbData = [];
                 snapshot.forEach(doc => {
                     const d = doc.data();
-                    // Jadikan stok akhir kemarin sebagai stok awal hari ini (jika tidak ada, anggap 0)
                     let awalVal = yesterdayData[d.nama] || 0; 
-                    
                     fbData.push({ nama: d.nama, kategori: d.kategori, satuan: d.satuan, awal: awalVal, masuk: 0, terbuang: 0, akhir: "" });
                 });
                 
-                if(fbData.length === 0) throw new Error("Data master stok kosong. Harap Jalur Ninja lagi.");
+                if(fbData.length === 0) throw new Error("Data master stok kosong.");
                 currentStockData = fbData;
+                
+                // 3. KARENA KITA REAL-TIME, KITA LANGSUNG BIKINKAN BUKUNYA DI SERVER SEKARANG JUGA!
+                await db.collection('laporan_stok').doc(dateStr).set({
+                    tanggal: dateStr,
+                    operator: window.currentUserNama || "Pegawai",
+                    status: "Sedang Berjalan", // Tandai bahwa resto masih buka
+                    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+                    items: currentStockData
+                });
+                renderStockList();
             }
-            
-            renderStockList(); 
-            
         } catch (err) {
             listContainer.innerHTML = `<div class="alert alert-danger m-3 text-center small"><b>Gagal Memuat:</b><br>${err.message}</div>`;
         }
     }
 
-    // Fungsi Tambah Instan (Tanpa Loading API!)
-    function submitIncrement(index, type) {
+    async function submitIncrement(index, type) {
         const inputElem = document.getElementById(`inp-${type}-${index}`);
         const val = parseFloat(inputElem.value);
         if (isNaN(val) || val <= 0) return Swal.fire({ toast: true, position: 'top', icon: 'warning', title: 'Masukkan angka!', timer: 1500, showConfirmButton: false });
 
-        // Langsung tambahkan di memori HP, secepat kilat!
-        currentStockData[index][type] += val;
-        document.getElementById(`tot-${type}-${index}`).innerText = currentStockData[index][type];
-        inputElem.value = "";
+        const btn = inputElem.nextElementSibling;
+        const originalIcon = btn.innerHTML;
+        const dateStr = document.getElementById('stockDate').value;
         
-        Swal.fire({ toast: true, position: 'top', showConfirmButton: false, timer: 1000, icon: 'success', title: `+${val} ditambahkan ke Draf` });
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm" style="width: 1rem; height: 1rem;"></span>`;
+        btn.disabled = true; inputElem.disabled = true;
+
+        try {
+            // 1. Tambah di memori lokal
+            currentStockData[index][type] += val;
+            
+            // 2. TEMBAK LANGSUNG KE SERVER (LIVE!)
+            await syncToFirebase(dateStr);
+            
+            // 3. Berhasil? Baru ubah UI-nya
+            document.getElementById(`tot-${type}-${index}`).innerText = currentStockData[index][type];
+            inputElem.value = "";
+            btn.innerHTML = originalIcon; btn.disabled = false; inputElem.disabled = false;
+            
+            Swal.fire({ toast: true, position: 'top', showConfirmButton: false, timer: 1000, icon: 'success', title: `Terekam Live di Server!` });
+        } catch (err) {
+            // Jika sinyal mati, batalkan penambahan agar tidak error
+            currentStockData[index][type] -= val; 
+            btn.innerHTML = originalIcon; btn.disabled = false; inputElem.disabled = false;
+            Swal.fire({ icon: 'error', title: 'Gagal Sinkron', text: "Pastikan internet menyala. " + err.message });
+        }
     }
 
-    function updateVal(index, field, val) {
+    async function updateVal(index, field, val) {
         currentStockData[index][field] = (val === "") ? "" : parseFloat(val);
         document.getElementById(`stockRow-${index}`).classList.remove('error-highlight');
+        
+        const dateStr = document.getElementById('stockDate').value;
+        try {
+            // TEMBAK LANGSUNG SAAT PEGAWAI MENGETIK STOK AKHIR!
+            await syncToFirebase(dateStr);
+        } catch(err) { console.error("Gagal auto-save akhir:", err); }
     }
 
     async function handleSaveStock() {
@@ -421,39 +455,34 @@
         currentStockData.forEach((item, index) => {
             const row = document.getElementById(`stockRow-${index}`);
             row.classList.remove('error-highlight');
-            // Cek jika stok akhir belum diisi
             if (item.akhir === "") { hasError = true; missing.push(item.nama); row.classList.add('error-highlight'); }
         });
 
         if (hasError) {
             const first = document.querySelector('.error-highlight');
             if(first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            return Swal.fire({ icon: 'error', title: 'Belum Lengkap!', html: `Isi stok akhir untuk:<br><span class="text-danger small">${missing.join(', ')}</span>`, confirmButtonColor: '#ff4757' });
+            return Swal.fire({ icon: 'error', title: 'Belum Lengkap!', html: `Isi stok akhir fisik untuk:<br><span class="text-danger small">${missing.join(', ')}</span>`, confirmButtonColor: '#ff4757' });
         }
 
         const btn = document.getElementById('btnSaveStock');
-        btn.disabled = true; btn.innerHTML = "Menyimpan ke Firebase...";
+        btn.disabled = true; btn.innerHTML = "Memfinalisasi...";
         const dateStr = document.getElementById('stockDate').value;
-        const operatorName = window.currentUserNama || "Pegawai";
 
         try {
-            // Tembak sekaligus dalam 1 dokumen ke koleksi 'laporan_stok' Firestore
-            await db.collection('laporan_stok').doc(dateStr).set({
-                tanggal: dateStr,
-                operator: operatorName,
-                last_updated: firebase.firestore.FieldValue.serverTimestamp(),
-                items: currentStockData
+            // Karena data sudah tersimpan real-time, tombol ini sekarang hanya untuk "Menutup Buku Harian"
+            await db.collection('laporan_stok').doc(dateStr).update({
+                status: "Tutup Buku", 
+                last_updated: firebase.firestore.FieldValue.serverTimestamp()
             });
 
-            btn.disabled = false; btn.innerHTML = "Simpan Laporan";
-            Swal.fire({ icon: 'success', title: 'Tersimpan Instan!', confirmButtonColor: '#1D407A' });
-            loadStockItems(); // Refresh tampilan
+            btn.disabled = false; btn.innerHTML = "Laporan Ditutup";
+            btn.classList.add('bg-success');
+            Swal.fire({ icon: 'success', title: 'Selesai!', text: 'Laporan hari ini sudah ditutup dan difinalisasi.', confirmButtonColor: '#1D407A' });
         } catch (err) {
             btn.disabled = false; btn.innerHTML = "Simpan Laporan";
             Swal.fire({ icon: 'error', title: 'Error Server', text: err.message, confirmButtonColor: '#1D407A' });
         }
     }
-
     // FUNGSI TOGGLE ACCORDION STOK
     function toggleInputCat(id) {
         const container = document.getElementById(id); const icon = document.getElementById('icon-' + id);
