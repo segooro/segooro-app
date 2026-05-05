@@ -490,6 +490,23 @@
         else { container.style.display = 'none'; icon.style.transform = 'rotate(-90deg)'; }
     }
 
+    // FUNGSI TOGGLE ACCORDION PANTAU STOK
+    function toggleCat(id) {
+        const container = document.getElementById(id); 
+        const icon = document.getElementById('icon-' + id);
+        const badges = document.getElementById('badges-' + id);
+        
+        if (container.style.display === 'none') { 
+            container.style.display = 'grid'; 
+            icon.style.transform = 'rotate(0deg)'; 
+            if (badges) badges.style.display = 'none'; 
+        } else { 
+            container.style.display = 'none'; 
+            icon.style.transform = 'rotate(-90deg)'; 
+            if (badges) badges.style.display = 'flex'; 
+        }
+    }
+
     function renderStockList() {
         const listContainer = document.getElementById('stockList');
         listContainer.innerHTML = '';
