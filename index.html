@@ -184,6 +184,12 @@
         <div class="header-profile">
             <div class="greeting"><h1>Kalkulator,</h1><p>RESEP SEGOO.RO</p></div>
         </div>
+        <!-- TOMBOL NINJA RESEP -->
+        <div class="px-1 mb-3">
+            <button class="btn btn-warning w-100 fw-bold shadow-sm" style="border-radius: 15px; padding: 12px;" onclick="sedotResepDariSheets()">
+                <i class="bi bi-cloud-download-fill me-2"></i> Sedot Resep ke Firebase
+            </button>
+        </div>
         <div id="kalkulatorContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
 
@@ -820,6 +826,52 @@
         Swal.fire({ title: 'Keluar?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e74c3c', confirmButtonText: 'Ya, Keluar' }).then((result) => {
             if (result.isConfirmed) firebase.auth().signOut(); 
         });
+    }
+    // ==========================================
+    // JURUS NINJA: SEDOT RESEP KE FIRESTORE
+    // ==========================================
+    async function sedotResepDariSheets() {
+        const result = await Swal.fire({
+            title: 'Mulai Sinkronisasi Resep?',
+            text: "Seluruh data resep (sambal, ayam, dll) dari Google Sheets akan disalin permanen ke Firebase.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Sedot!',
+            confirmButtonColor: '#1D407A'
+        });
+
+        if (!result.isConfirmed) return;
+
+        Swal.fire({ title: 'Menyedot Resep...', text: 'Meminta data ke Google Sheets...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+
+        try {
+            // 1. Tarik seluruh data resep dari GAS
+            const dataResep = await gasAPI('getRecipesData');
+            const daftarKunci = Object.keys(dataResep); // Mendapatkan array ['s_bawang', 'ungkep', dll]
+
+            if (!dataResep || daftarKunci.length === 0) throw new Error("Data resep kosong atau gagal dimuat dari Sheets!");
+
+            // 2. Siapkan keranjang pengiriman masal (Batch) ke Firestore
+            const batch = db.batch();
+            
+            // 3. Susun datanya agar rapi di Firestore
+            daftarKunci.forEach((kodeResep) => {
+                const docRef = db.collection('master_resep').doc(kodeResep);
+                batch.set(docRef, {
+                    kode: kodeResep, // contoh: 's_bawang'
+                    bahan_bahan: dataResep[kodeResep], // Array berisi {bahan, takaran, satuan}
+                    last_updated: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            });
+
+            // 4. Kirim ke Firebase!
+            await batch.commit();
+
+            Swal.fire('Sukses Ninja!', `${daftarKunci.length} resep rahasia berhasil diamankan ke Firebase.`, 'success');
+            
+        } catch (err) {
+            Swal.fire('Gagal Ninja', err.message, 'error');
+        }
     }
 </script>
 
