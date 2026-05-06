@@ -164,7 +164,7 @@
                 <h5 class="fw-bold mb-0" style="color: var(--primary-solid);">Input Stok</h5>
                 <small class="text-muted text-uppercase" style="letter-spacing: 0.5px; font-size: 0.7rem; font-weight: 700;">Laporan Harian Karyawan</small>
             </div>
-            <!-- Tombol Logout Khusus Owner Muncul di Sini (Karena Owner Tidak Punya Halaman Presensi) -->
+            <!-- Tombol Logout Khusus Owner -->
             <button class="btn btn-sm btn-outline-danger shadow-sm owner-only" style="border-radius: 10px; display:none;" onclick="handleLogout()">
                 <i class="bi bi-box-arrow-right"></i> Keluar
             </button>
@@ -225,7 +225,7 @@
         </div>
     </div>
 
-    <!-- BOTTOM NAVIGATION (100% Menggantikan Tab Lama) -->
+    <!-- BOTTOM NAVIGATION -->
     <div class="bottom-nav">
         <!-- PEGAWAI ONLY -->
         <a href="javascript:void(0)" id="nav-pagePresensi" onclick="switchPage('pagePresensi')" class="nav-item pegawai-only">
@@ -296,17 +296,14 @@
     // SISTEM NAVIGASI (BOTTOM NAV ONLY - TANPA PIN)
     // ==========================================
     function switchPage(pageId) {
-        // Sembunyikan semua konten halaman
         document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
         const targetPage = document.getElementById(pageId);
         if (targetPage) targetPage.classList.add('active');
         
-        // Perbarui warna tombol yang menyala
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         const activeNav = document.getElementById('nav-' + pageId);
         if (activeNav) activeNav.classList.add('active');
 
-        // Panggil fungsi "pemuat data" sesuai halaman
         if (pageId === 'pageStok') loadStockItems();
         if (pageId === 'pageKalkulator') loadKalkulator();
         if (pageId === 'pageBelanja') loadBelanja();
@@ -332,9 +329,11 @@
                 const now = new Date();
                 const tanggalStr = now.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'}); 
                 const waktuStr = now.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}); 
+                const isoDate = now.toISOString().split('T')[0]; // Format ISO untuk Sinkronisasi
 
                 await db.collection('presensi').add({
-                    nama: name, email: user.email, tipe: type, tanggal: tanggalStr, waktu: waktuStr,
+                    nama: name, email: user.email, tipe: type, 
+                    tanggal: tanggalStr, tanggalISO: isoDate, waktu: waktuStr,
                     timestamp: firebase.firestore.FieldValue.serverTimestamp(), lat: pos.coords.latitude, lng: pos.coords.longitude
                 });
                 
@@ -355,7 +354,6 @@
     // ==========================================
     let currentStockData = [];
     
-    // FUNGSI BARU: Mesin Sinkronisasi Instan ke Server Owner
     async function syncToFirebase(dateStr) {
         await db.collection('laporan_stok').doc(dateStr).update({
             last_updated: firebase.firestore.FieldValue.serverTimestamp(),
@@ -375,12 +373,9 @@
             const docRef = await db.collection('laporan_stok').doc(dateStr).get();
 
             if (docRef.exists) {
-                // Ambil data dari server
                 currentStockData = docRef.data().items;
                 renderStockList();
             } else {
-                // JIKA HARI INI BELUM ADA LAPORAN:
-                // 1. Cek stok akhir kemarin
                 let d = new Date(dateStr);
                 d.setDate(d.getDate() - 1);
                 let yesterdayStr = d.toISOString().split('T')[0];
@@ -391,7 +386,6 @@
                     yesterdayRef.data().items.forEach(item => { yesterdayData[item.nama] = item.akhir; });
                 }
 
-                // 2. Bentuk draf hari ini
                 const snapshot = await db.collection('master_stok').get();
                 let fbData = [];
                 snapshot.forEach(doc => {
@@ -403,11 +397,10 @@
                 if(fbData.length === 0) throw new Error("Data master stok kosong.");
                 currentStockData = fbData;
                 
-                // 3. KARENA KITA REAL-TIME, KITA LANGSUNG BIKINKAN BUKUNYA DI SERVER SEKARANG JUGA!
                 await db.collection('laporan_stok').doc(dateStr).set({
                     tanggal: dateStr,
                     operator: window.currentUserNama || "Pegawai",
-                    status: "Sedang Berjalan", // Tandai bahwa resto masih buka
+                    status: "Sedang Berjalan", 
                     last_updated: firebase.firestore.FieldValue.serverTimestamp(),
                     items: currentStockData
                 });
@@ -431,20 +424,15 @@
         btn.disabled = true; inputElem.disabled = true;
 
         try {
-            // 1. Tambah di memori lokal
             currentStockData[index][type] += val;
-            
-            // 2. TEMBAK LANGSUNG KE SERVER (LIVE!)
             await syncToFirebase(dateStr);
             
-            // 3. Berhasil? Baru ubah UI-nya
             document.getElementById(`tot-${type}-${index}`).innerText = currentStockData[index][type];
             inputElem.value = "";
             btn.innerHTML = originalIcon; btn.disabled = false; inputElem.disabled = false;
             
             Swal.fire({ toast: true, position: 'top', showConfirmButton: false, timer: 1000, icon: 'success', title: `Terekam Live di Server!` });
         } catch (err) {
-            // Jika sinyal mati, batalkan penambahan agar tidak error
             currentStockData[index][type] -= val; 
             btn.innerHTML = originalIcon; btn.disabled = false; inputElem.disabled = false;
             Swal.fire({ icon: 'error', title: 'Gagal Sinkron', text: "Pastikan internet menyala. " + err.message });
@@ -457,7 +445,6 @@
         
         const dateStr = document.getElementById('stockDate').value;
         try {
-            // TEMBAK LANGSUNG SAAT PEGAWAI MENGETIK STOK AKHIR!
             await syncToFirebase(dateStr);
         } catch(err) { console.error("Gagal auto-save akhir:", err); }
     }
@@ -481,7 +468,6 @@
         const dateStr = document.getElementById('stockDate').value;
 
         try {
-            // Karena data sudah tersimpan real-time, tombol ini sekarang hanya untuk "Menutup Buku Harian"
             await db.collection('laporan_stok').doc(dateStr).update({
                 status: "Tutup Buku", 
                 last_updated: firebase.firestore.FieldValue.serverTimestamp()
@@ -496,14 +482,12 @@
         }
     }
 
-    // FUNGSI TOGGLE ACCORDION STOK
     function toggleInputCat(id) {
         const container = document.getElementById(id); const icon = document.getElementById('icon-' + id);
         if (container.style.display === 'none') { container.style.display = 'block'; icon.style.transform = 'rotate(0deg)'; } 
         else { container.style.display = 'none'; icon.style.transform = 'rotate(-90deg)'; }
     }
 
-    // FUNGSI TOGGLE ACCORDION PANTAU STOK
     function toggleCat(id) {
         const container = document.getElementById(id); 
         const icon = document.getElementById('icon-' + id);
@@ -592,9 +576,8 @@
         stockDate: now.toISOString().split('T')[0] 
     };
 
-    // FUNGSI BARU: Mengambil resep super cepat dari Firestore
     async function fetchRecipesFromFirestore() {
-        if (globalRecipes) return globalRecipes; // Hemat kuota jika sudah ditarik
+        if (globalRecipes) return globalRecipes;
         
         const snapshot = await db.collection('master_resep').get();
         if (snapshot.empty) throw new Error("Data resep belum ada di Firestore!");
@@ -602,7 +585,6 @@
         let recipesObj = {};
         snapshot.forEach(doc => {
             const data = doc.data();
-            // Menyusun ulang bentuk datanya agar persis seperti Spreadsheet lama
             recipesObj[data.kode] = data.bahan_bahan; 
         });
         
@@ -656,9 +638,11 @@
                 content.innerHTML = `
                     <div class="filter-box mb-3 shadow-sm">
                         <label class="small fw-bold mb-2 text-muted">Filter Tanggal Laporan</label>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 mb-3">
                             <input type="date" id="adminStockDate" class="form-control form-control-sm" value="${dateStr}" style="border-radius: 10px;">
-                            <button class="btn btn-primary btn-sm" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i> Cek</button>
+                            <button class="btn btn-primary btn-sm px-3" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i></button>
+                            <!-- TOMBOL SYNC STOK -->
+                            <button class="btn btn-outline-secondary btn-sm px-3" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogStok()" title="Tarik dari Sheets"><i class="bi bi-arrow-repeat fs-6 text-primary"></i></button>
                         </div>
                     </div>
                     <div class="text-center mt-5 text-muted animate__animated animate__fadeIn">
@@ -672,17 +656,14 @@
             const data = docRef.data();
             let rawItems = data.items;
             
-            // LOGIKA PENGGANTI GOOGLE SHEETS (Dihitung otomatis di HP Owner)
             let processedStocks = rawItems.map(item => {
-                // Hitung estimasi stok berjalan
                 let currentStock = item.akhir !== "" ? item.akhir : (item.awal + item.masuk - item.terbuang);
-                
-                let alertLevel = 0; let status = "AMAN"; let color = "#2ecc71"; // Default Hijau
+                let alertLevel = 0; let status = "AMAN"; let color = "#2ecc71"; 
                 
                 if (currentStock <= 0) {
-                    alertLevel = 2; status = "HABIS"; color = "#e74c3c"; // Merah
-                } else if (currentStock <= 5) { // Kita set batas peringatan "Menipis" jika stok <= 5
-                    alertLevel = 1; status = "MENIPIS"; color = "#feca57"; // Kuning
+                    alertLevel = 2; status = "HABIS"; color = "#e74c3c"; 
+                } else if (currentStock <= 5) { 
+                    alertLevel = 1; status = "MENIPIS"; color = "#feca57"; 
                 }
 
                 return {
@@ -695,7 +676,6 @@
                 };
             });
 
-            // Kirim data yang sudah diolah ke fungsi pembuat tampilan
             renderStockMonitorGrid(processedStocks, data.status, data.operator, data.last_updated);
             
         } catch (err) { 
@@ -703,7 +683,6 @@
         }
     }
 
-    // --- RENDER KALKULATOR ---
     function renderKalkulatorPage(recipes) {
         const content = document.getElementById('kalkulatorContent');
         const recipeKeys = Object.keys(recipes);
@@ -757,7 +736,6 @@
         container.innerHTML = tableHtml + `</tbody></table></div>`;
     }
 
-    // --- RENDER BELANJA ---
     function renderBelanjaPage(recipes) {
         const content = document.getElementById('belanjaContent');
         const recipeKeys = Object.keys(recipes);
@@ -817,7 +795,6 @@
         container.innerHTML = tableHtml + `</tbody></table></div>`;
     }
 
-    // --- RENDER PANTAU STOK ---
     function renderStockMonitorGrid(stocks, reportStatus = "Sedang Berjalan", operator = "-", lastUpdated) {
         const content = document.getElementById('pemantauContent');
         if(!stocks || stocks.length === 0) return content.innerHTML = '<p class="text-center text-muted mt-4">Belum ada data stok.</p>';
@@ -826,7 +803,6 @@
         const warningCount = stocks.filter(s => s.alertLevel === 1).length;
         const categories = [...new Set(stocks.map(s => s.kategori))];
 
-        // Format waktu terakhir diupdate
         let timeString = lastUpdated ? lastUpdated.toDate().toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}) : 'Baru saja';
         let statusBadge = reportStatus === "Tutup Buku" ? `<span class="badge bg-success shadow-sm"><i class="bi bi-check-circle-fill me-1"></i> Tutup Buku</span>` : `<span class="badge bg-warning text-dark shadow-sm"><i class="bi bi-arrow-repeat me-1"></i> Berjalan</span>`;
 
@@ -835,10 +811,11 @@
                 <label class="small fw-bold mb-2 text-muted">Filter Tanggal Laporan</label>
                 <div class="d-flex gap-2 mb-3">
                     <input type="date" id="adminStockDate" class="form-control form-control-sm" value="${adminFilter.stockDate}" style="border-radius: 10px;">
-                    <button class="btn btn-primary btn-sm" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i> Cek</button>
+                    <button class="btn btn-primary btn-sm px-3" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i></button>
+                    <!-- TOMBOL SYNC STOK -->
+                    <button class="btn btn-outline-secondary btn-sm px-3" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogStok()" title="Tarik dari Sheets"><i class="bi bi-arrow-repeat fs-6 text-primary"></i></button>
                 </div>
                 
-                <!-- PANEL INFO REALTIME -->
                 <div class="p-2" style="background: #f8f9fa; border-radius: 10px; font-size: 0.75rem; border: 1px solid #e1e5ee;">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="text-muted fw-bold">Status Laporan:</span> ${statusBadge}
@@ -869,7 +846,6 @@
             `;
             
             items.forEach(s => {
-                // Tampilkan Estimasi Live jika Akhir belum diisi
                 const liveStock = s.akhir !== "" ? s.akhir : s.currentStock;
 
                 html += `
@@ -935,9 +911,11 @@
                     ${data.employeeNames.map(n => `<option value="${n}" ${adminFilter.name === n ? 'selected' : ''}>${n}</option>`).join('')}
                 </select>
                 <div class="row g-2">
-                    <div class="col-5"><input type="date" id="adminStart" class="form-control form-control-sm" value="${adminFilter.start}" style="border-radius: 10px;"></div>
-                    <div class="col-5"><input type="date" id="adminEnd" class="form-control form-control-sm" value="${adminFilter.end}" style="border-radius: 10px;"></div>
-                    <div class="col-2"><button class="btn btn-primary btn-sm w-100" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyAdminFilter()"><i class="bi bi-search"></i></button></div>
+                    <div class="col-4"><input type="date" id="adminStart" class="form-control form-control-sm" value="${adminFilter.start}" style="border-radius: 10px;"></div>
+                    <div class="col-4"><input type="date" id="adminEnd" class="form-control form-control-sm" value="${adminFilter.end}" style="border-radius: 10px;"></div>
+                    <div class="col-2"><button class="btn btn-primary btn-sm w-100 h-100" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyAdminFilter()"><i class="bi bi-search"></i></button></div>
+                    <!-- TOMBOL SYNC PRESENSI -->
+                    <div class="col-2"><button class="btn btn-outline-secondary btn-sm w-100 h-100" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogPresensi()" title="Tarik dari Sheets"><i class="bi bi-arrow-repeat fs-6 text-primary"></i></button></div>
                 </div>
             </div>
 
@@ -1012,6 +990,69 @@
                 }).catch(err => { Swal.fire('Error', err.message, 'error'); });
             }
         });
+    }
+
+    // ==========================================
+    // MESIN SINKRONISASI TRANSISI (SHEETS -> FIRESTORE)
+    // ==========================================
+    
+    // 1. Sedot Log Pantau Stok per Hari
+    async function syncLogStok() {
+        const dateStr = document.getElementById('adminStockDate').value;
+        Swal.fire({ title: 'Menyinkronkan Stok...', text: `Menarik data stok tanggal ${dateStr} dari Sheets`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        
+        try {
+            const data = await gasAPI('getStockData', { dateStr: dateStr });
+            if (!data || data.length === 0) throw new Error("Data di Sheets kosong untuk tanggal ini.");
+            
+            // Rapikan data agar pas dengan laci Firestore
+            let currentStockData = data.map(item => ({
+                nama: item.nama, kategori: item.kategori, satuan: item.satuan,
+                awal: item.awal || 0, masuk: item.masuk || 0, terbuang: item.terbuang || 0, akhir: item.akhir || ""
+            }));
+
+            // Paksa simpan ke laporan_stok Firestore
+            await db.collection('laporan_stok').doc(dateStr).set({
+                tanggal: dateStr, operator: "Auto-Sync (Sheets)", status: "Tutup Buku",
+                last_updated: firebase.firestore.FieldValue.serverTimestamp(), items: currentStockData
+            });
+            
+            Swal.fire('Sukses!', 'Log stok berhasil diamankan ke Firebase.', 'success');
+            loadPemantau(); // Refresh halaman
+        } catch (err) { Swal.fire('Gagal Sync', err.message, 'error'); }
+    }
+
+    // 2. Sedot Log Presensi (Absen) per Periode
+    async function syncLogPresensi() {
+        const start = document.getElementById('adminStart').value;
+        const end = document.getElementById('adminEnd').value;
+        Swal.fire({ title: 'Menyinkronkan Presensi...', text: `Menarik log absen dari Sheets`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        
+        try {
+            const data = await gasAPI('getAdminDashboardData', { start: start, end: end, name: "", stockDate: start });
+            if (!data || data.recentLogs.length === 0) throw new Error("Data absen di Sheets kosong.");
+            
+            const batch = db.batch();
+            data.recentLogs.forEach(log => {
+                // log.tanggal dari Sheets formatnya DD/MM/YYYY. Kita ubah ke YYYY-MM-DD
+                let parts = log.tanggal.split('/'); 
+                let isoDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : start;
+                
+                // Pecah jadi 2 dokumen (Datang & Pulang) agar strukturnya sama persis dengan Firebase!
+                if(log.masuk && log.masuk !== "..") {
+                    let docRef = db.collection('presensi').doc(`sync_${log.nama}_${isoDate}_datang`);
+                    batch.set(docRef, { nama: log.nama, tipe: "Datang", tanggal: log.tanggal, tanggalISO: isoDate, waktu: log.masuk, is_sync: true });
+                }
+                if(log.pulang && log.pulang !== "..") {
+                    let docRef2 = db.collection('presensi').doc(`sync_${log.nama}_${isoDate}_pulang`);
+                    batch.set(docRef2, { nama: log.nama, tipe: "Pulang", tanggal: log.tanggal, tanggalISO: isoDate, waktu: log.pulang, is_sync: true });
+                }
+            });
+            await batch.commit();
+            
+            Swal.fire('Sukses!', 'Log absen lama berhasil menyatu ke Firebase.', 'success');
+            loadPresensiGaji(); // Refresh halaman
+        } catch (err) { Swal.fire('Gagal Sync', err.message, 'error'); }
     }
 
     // ==========================================
