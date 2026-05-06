@@ -361,7 +361,7 @@
 
 <script>
     // ==========================================
-    // 1. API KEY & KONFIGURASI FIREBASE
+    // 1. API KEY & KONFIGURASI PANGKALAN DATA
     // ==========================================
     const GEMINI_API_KEY = "AIzaSyBCQ_vJzsEQAsNS1rzTFdgoZKXV4y7tx-s"; 
 
@@ -379,38 +379,44 @@
     const auth = firebase.auth();
     const db = firebase.firestore();
 
-    const API_URL = "https://script.google.com/macros/s/AKfycbyEyzRPvKN_H9OTxCe6YzLVFLegtIwB73lagp0weSoSgPjFfHtTxFsL77l75bD8JrOQ/exec";
+    // ==========================================
+    // LOGIKA MULTI-SPREADSHEET (ROUTER API)
+    // ==========================================
+    // 1. URL API khusus untuk Presensi, Stok, & Gaji
+    const API_URL_PRESENSI = "https://script.google.com/macros/s/AKfycbyEyzRPvKN_H9OTxCe6YzLVFLegtIwB73lagp0weSoSgPjFfHtTxFsL77l75bD8JrOQ/exec";
+    
+    // 2. URL API khusus untuk Laporan Keuangan (WAJIB DIISI!)
+    const API_URL_KEUANGAN = "https://script.google.com/macros/s/AKfycbyx07tqgqgoVHS0K35ymJ5VysyTIGw4ETESJsLEI5qbXt9iHtlh6dw7GCBap92mylnVjw/exec";
 
-    // ==========================================
-    // GLOBAL STATE & VARIABLES
-    // ==========================================
-    let now = new Date();
-    let adminFilter = { 
-        start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0], 
-        end: now.toISOString().split('T')[0], 
-        name: "", 
-        stockDate: now.toISOString().split('T')[0] 
-    };
-    let currentStockData = [];
-    let aiBase64Image = "";
-    let tempAiItems = [];
-    let globalRecipes = null;
-    let currentPayrollData = null; 
-    const TARIF_GAJI_PER_JAM = 10000; 
-
-    // ==========================================
-    // 2. SISTEM NAVIGASI PWA & KEUANGAN
-    // ==========================================
+    // Fungsi komunikasi API yang sudah dilengkapi Polisi Lalu Lintas (Router)
     async function gasAPI(action, payload = {}) {
         payload.action = action;
+        
+        // Secara otomatis menentukan URL mana yang harus dipanggil
+        let targetUrl = API_URL_PRESENSI; // Default mengarah ke Presensi
+        
+        // Jika perintahnya berhubungan dengan keuangan, belokkan ke URL Keuangan
+        if (action === 'getRekapData' || action === 'savePenjualan' || action === 'savePengeluaran') {
+            targetUrl = API_URL_KEUANGAN;
+        }
+
+        // Pencegah Error jika URL Keuangan lupa diisi
+        if (targetUrl.includes("ISI_DENGAN_URL")) {
+            throw new Error("URL Web App GAS Keuangan belum dimasukkan di kode PWA!");
+        }
+
         try {
-            const response = await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
+            const response = await fetch(targetUrl, { 
+                method: "POST", 
+                body: JSON.stringify(payload) 
+            });
             const res = await response.json();
             if (!res.success) throw new Error(res.message);
             return res.data;
-        } catch (error) { throw error; }
+        } catch (error) { 
+            throw error; 
+        }
     }
-
     window.onload = () => {
         const stockDateInput = document.getElementById('stockDate');
         if (stockDateInput && !stockDateInput.value) { stockDateInput.valueAsDate = new Date(); }
@@ -1132,25 +1138,18 @@
         
         if (!start || !end) return Swal.fire('Oops', 'Tentukan rentang tanggal filter terlebih dahulu.', 'warning');
 
-        Swal.fire({ 
-            title: 'Menyinkronkan Keuangan...', 
-            text: `Menarik data dari Sheets...`, 
-            allowOutsideClick: false, 
-            didOpen: () => Swal.showLoading() 
-        });
+        Swal.fire({ title: 'Menyinkronkan Keuangan...', text: `Menarik data dari Sheets...`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
         try {
-            // Panggil API GAS. (Menggunakan action 'getRekapData' sesuai fungsi rekap di GAS-mu)
+            // PWA akan otomatis membelokkan perintah ini ke API_URL_KEUANGAN
             const resData = await gasAPI('getRekapData', { startDate: start, endDate: end });
             
-            // Deteksi format response (beradaptasi apakah array of arrays atau array of objects)
             let items = Array.isArray(resData) ? resData : (resData.data || []);
             if (!items || items.length === 0) throw new Error("Data di Sheets kosong untuk rentang tanggal tersebut.");
 
             const batch = db.batch();
 
             items.forEach((row, i) => {
-                // Adaptasi cerdas membaca index kolom (Tgl, Tunai, QRIS, Shopee, Grab, Pengeluaran)
                 let tglVal = Array.isArray(row) ? row[0] : row.tanggal;
                 let tunai = Array.isArray(row) ? (parseFloat(row[1]) || 0) : (parseFloat(row.tunai) || 0);
                 let qris = Array.isArray(row) ? (parseFloat(row[2]) || 0) : (parseFloat(row.qris) || 0);
@@ -1158,9 +1157,8 @@
                 let grab = Array.isArray(row) ? (parseFloat(row[4]) || 0) : (parseFloat(row.grab) || 0);
                 let pengeluaran = Array.isArray(row) ? (parseFloat(row[5]) || 0) : (parseFloat(row.pengeluaran) || 0);
 
-                if (!tglVal) return; // Lewati jika baris kosong
+                if (!tglVal) return; 
 
-                // Konversi format ke YYYY-MM-DD jika dari sheets bentuknya DD/MM/YYYY
                 let tglISO = tglVal;
                 if (tglISO.includes('/')) {
                     let p = tglISO.split('/');
@@ -1169,37 +1167,27 @@
 
                 let totalJual = tunai + qris + shopee + grab;
                 
-                // Buat rincian pengeluaran "dummy" agar uang keluar tetap terhitung saat rekap Firebase
                 let expList = [];
                 if (pengeluaran > 0) {
                     expList.push({
-                        id: `sync_sheets_${Date.now()}_${i}`,
-                        item: "Rekap Migrasi dari Sheets",
-                        kategori: "Lainnya",
-                        jumlah: 1,
-                        satuan: "Ls",
-                        harga: pengeluaran
+                        id: `sync_sheets_${Date.now()}_${i}`, item: "Rekap Migrasi dari Sheets", kategori: "Lainnya",
+                        jumlah: 1, satuan: "Ls", harga: pengeluaran
                     });
                 }
 
-                // Masukkan ke koleksi laporan_keuangan Firebase
                 let docRef = db.collection('laporan_keuangan').doc(tglISO);
                 batch.set(docRef, {
                     tanggal: tglISO,
                     penjualan: { tunai: tunai, qris: qris, shopee: shopee, grab: grab },
                     total_penjualan: totalJual,
-                    pengeluaran_list: expList, // Timpa rincian dengan data agregat sheets
+                    pengeluaran_list: expList,
                     last_updated: firebase.firestore.FieldValue.serverTimestamp(),
                     is_sync: true
-                }, { merge: true }); // merge=true agar tidak menghapus jika kebetulan sudah ada
+                }, { merge: true });
             });
 
-            // Eksekusi penulisan massal (Batch Write)
             await batch.commit();
-            
             Swal.fire('Sukses!', 'Data Keuangan dari Google Sheets berhasil diamankan ke Firebase.', 'success');
-            
-            // Otomatis refresh tampilan tabel rekap setelah sinkronisasi
             loadRekapKeuangan();
             
         } catch (err) { 
