@@ -13,6 +13,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
+    <!-- Pustaka Pembuat PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
     <style>
         :root { 
             --primary-gradient: linear-gradient(135deg, #1D407A 0%, #0F2754 100%); 
@@ -568,6 +571,7 @@
     // MENU OWNER (KALKULATOR & BELANJA & PANTAU STOK)
     // ==========================================
     let globalRecipes = null;
+    let currentPayrollData = null; // Menyimpan data gaji untuk diekspor ke PDF
     let now = new Date();
     let adminFilter = { 
         start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
@@ -641,7 +645,6 @@
                         <div class="d-flex gap-2 mb-3">
                             <input type="date" id="adminStockDate" class="form-control form-control-sm" value="${dateStr}" style="border-radius: 10px;">
                             <button class="btn btn-primary btn-sm px-3" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i></button>
-                            <!-- TOMBOL SYNC STOK -->
                             <button class="btn btn-outline-secondary btn-sm px-3" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogStok()" title="Tarik dari Sheets"><i class="bi bi-arrow-repeat fs-6 text-primary"></i></button>
                         </div>
                     </div>
@@ -812,7 +815,6 @@
                 <div class="d-flex gap-2 mb-3">
                     <input type="date" id="adminStockDate" class="form-control form-control-sm" value="${adminFilter.stockDate}" style="border-radius: 10px;">
                     <button class="btn btn-primary btn-sm px-3" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i></button>
-                    <!-- TOMBOL SYNC STOK -->
                     <button class="btn btn-outline-secondary btn-sm px-3" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogStok()" title="Tarik dari Sheets"><i class="bi bi-arrow-repeat fs-6 text-primary"></i></button>
                 </div>
                 
@@ -876,9 +878,8 @@
     // ==========================================
     // MENU PRESENSI & GAJI (OWNER ONLY)
     // ==========================================
-    const TARIF_GAJI_PER_JAM = 6250; // Silakan ubah nominal Gaji Per Jam di sini
+    const TARIF_GAJI_PER_JAM = 10000; 
 
-    // Fungsi internal untuk menghitung selisih jam
     function calculateHours(timeIn, timeOut) {
         if (!timeIn || !timeOut || timeIn === '..' || timeOut === '..') return 0;
         let [inH, inM] = timeIn.split(':').map(Number);
@@ -886,11 +887,10 @@
         let dIn = new Date(2000, 0, 1, inH, inM);
         let dOut = new Date(2000, 0, 1, outH, outM);
         
-        // Antisipasi jika ada yang masuk malam pulang pagi (lewat tengah malam)
         if (dOut < dIn) dOut.setDate(dOut.getDate() + 1); 
         
         let diffHrs = (dOut - dIn) / (1000 * 60 * 60);
-        return Math.round(diffHrs * 10) / 10; // Pembulatan 1 angka desimal
+        return Math.round(diffHrs * 10) / 10; 
     }
 
     async function loadPresensiGaji() {
@@ -901,7 +901,6 @@
         content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Menghitung gaji dari Firestore...</p></div>';
 
         try {
-            // 1. Tarik log presensi dari Firestore berdasarkan rentang tanggal
             const snapshot = await db.collection('presensi')
                 .where('tanggalISO', '>=', adminFilter.start)
                 .where('tanggalISO', '<=', adminFilter.end)
@@ -910,7 +909,6 @@
             let rawData = [];
             snapshot.forEach(doc => rawData.push({ id: doc.id, ...doc.data() }));
 
-            // 2. Kelompokkan absen berdasarkan Nama dan Tanggal (Mencari pasangan Datang & Pulang)
             let grouped = {};
             let employeeSet = new Set();
 
@@ -934,18 +932,16 @@
                 }
             });
 
-            // 3. Proses hitung jam kerja harian
             let recentLogs = [];
             let summaryMap = {};
 
             Object.values(grouped).forEach(g => {
-                // Terapkan filter nama jika dipilih
                 if (adminFilter.name && g.nama !== adminFilter.name) return;
 
                 let totalJam = calculateHours(g.masuk, g.pulang);
 
                 recentLogs.push({
-                    id: `${g.idMasuk}|${g.idPulang}|${g.tanggalISO}|${g.nama}`, // ID gabungan khusus edit
+                    id: `${g.idMasuk}|${g.idPulang}|${g.tanggalISO}|${g.nama}`, 
                     tanggal: g.tanggal,
                     tanggalISO: g.tanggalISO,
                     nama: g.nama,
@@ -954,19 +950,16 @@
                     totalJam: totalJam
                 });
 
-                // Kumpulkan total jam per karyawan
                 if (!summaryMap[g.nama]) summaryMap[g.nama] = { nama: g.nama, totalJam: 0, totalGaji: 0 };
                 summaryMap[g.nama].totalJam += totalJam;
             });
 
-            // 4. Kalkulasi Gaji Total
             let payrollSummary = Object.values(summaryMap).map(s => {
                 s.totalJam = Math.round(s.totalJam * 10) / 10;
                 s.totalGaji = s.totalJam * TARIF_GAJI_PER_JAM;
                 return s;
             });
 
-            // Urutkan riwayat absen dari yang paling baru
             recentLogs.sort((a, b) => new Date(b.tanggalISO) - new Date(a.tanggalISO));
 
             let finalData = {
@@ -975,6 +968,7 @@
                 recentLogs: recentLogs
             };
 
+            currentPayrollData = finalData; // Simpan ke variabel global untuk keperluan Ekspor PDF
             renderPayrollPage(finalData);
 
         } catch (err) {
@@ -1002,7 +996,6 @@
                     <div class="col-4"><input type="date" id="adminStart" class="form-control form-control-sm" value="${adminFilter.start}" style="border-radius: 10px;"></div>
                     <div class="col-4"><input type="date" id="adminEnd" class="form-control form-control-sm" value="${adminFilter.end}" style="border-radius: 10px;"></div>
                     <div class="col-2"><button class="btn btn-primary btn-sm w-100 h-100" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyAdminFilter()"><i class="bi bi-search"></i></button></div>
-                    <!-- TOMBOL SYNC PRESENSI -->
                     <div class="col-2"><button class="btn btn-outline-secondary btn-sm w-100 h-100" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogPresensi()" title="Tarik dari Sheets"><i class="bi bi-arrow-repeat fs-6 text-primary"></i></button></div>
                 </div>
             </div>
@@ -1019,7 +1012,11 @@
                     <div class="p-3 mb-2 shadow-sm bg-white animate__animated animate__fadeInUp" style="border-radius: 15px; border-left: 5px solid #2ecc71;">
                         <div class="d-flex justify-content-between align-items-center">
                             <div><p class="mb-0 fw-bold text-dark">${s.nama}</p><small class="text-muted">${s.totalJam} Jam Kerja</small></div>
-                            <div class="text-end text-success fw-bold fs-6">Rp ${Number(s.totalGaji).toLocaleString('id-ID')}</div>
+                            <div class="text-end d-flex align-items-center gap-2">
+                                <span class="text-success fw-bold fs-6">Rp ${Number(s.totalGaji).toLocaleString('id-ID')}</span>
+                                <!-- TOMBOL CETAK SLIP PDF -->
+                                <button class="btn btn-sm btn-outline-primary shadow-sm" style="border-radius: 8px; padding: 4px 10px;" onclick="generateSlipGaji('${s.nama}')"><i class="bi bi-download"></i></button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -1052,8 +1049,108 @@
         content.innerHTML = html;
     }
 
+    // FUNGSI BARU: PEMBUAT SLIP GAJI PDF
+    function generateSlipGaji(nama) {
+        if (!currentPayrollData) return;
+
+        const summary = currentPayrollData.payrollSummary.find(s => s.nama === nama);
+        if (!summary) return;
+
+        // Ambil log khusus karyawan ini dan urutkan dari tanggal paling lama (di atas) ke baru (di bawah)
+        const logs = currentPayrollData.recentLogs.filter(l => l.nama === nama).sort((a, b) => new Date(a.tanggalISO) - new Date(b.tanggalISO));
+
+        let logHtml = '';
+        logs.forEach(l => {
+            logHtml += `
+                <tr style="border-bottom: 1px solid #e1e5ee;">
+                    <td style="padding: 6px 4px; font-size: 11px;">${l.tanggal}</td>
+                    <td style="padding: 6px 4px; font-size: 11px;">${l.masuk} - ${l.pulang}</td>
+                    <td style="padding: 6px 4px; font-size: 11px; text-align: right; font-weight: bold;">${l.totalJam} J</td>
+                </tr>
+            `;
+        });
+
+        // Kanvas Slip Gaji
+        const slipContainer = document.createElement('div');
+        slipContainer.style.padding = '25px';
+        slipContainer.style.fontFamily = "'Segoe UI', Roboto, sans-serif";
+        slipContainer.style.color = '#2d3436';
+        slipContainer.style.width = '350px'; 
+        slipContainer.style.background = '#fff';
+
+        const startTgl = document.getElementById('adminStart').value;
+        const endTgl = document.getElementById('adminEnd').value;
+
+        slipContainer.innerHTML = `
+            <div style="text-align: center; border-bottom: 2px dashed #b2bec3; padding-bottom: 15px; margin-bottom: 15px;">
+                <h2 style="margin: 0; color: #1D407A; font-weight: 900; letter-spacing: 1px;">Segoo.Ro</h2>
+                <p style="margin: 3px 0 0 0; font-size: 11px; color: #636e72; font-weight: bold; text-transform: uppercase;">Slip Gaji Karyawan</p>
+            </div>
+            <div style="margin-bottom: 15px; font-size: 12px;">
+                <table style="width: 100%;">
+                    <tr><td style="width: 60px; color: #636e72;">Nama</td><td>: <strong>${nama}</strong></td></tr>
+                    <tr><td style="color: #636e72;">Periode</td><td>: <strong>${startTgl} s/d ${endTgl}</strong></td></tr>
+                </table>
+            </div>
+            
+            <p style="font-size: 11px; font-weight: 800; color: #1D407A; border-bottom: 2px solid #1D407A; padding-bottom: 5px; margin-bottom: 5px; text-transform: uppercase;">Rincian Jam Kerja</p>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                    <tr>
+                        <th style="text-align: left; font-size: 10px; padding: 4px; color: #b2bec3; border-bottom: 1px solid #e1e5ee; text-transform: uppercase;">Tanggal</th>
+                        <th style="text-align: left; font-size: 10px; padding: 4px; color: #b2bec3; border-bottom: 1px solid #e1e5ee; text-transform: uppercase;">Absen</th>
+                        <th style="text-align: right; font-size: 10px; padding: 4px; color: #b2bec3; border-bottom: 1px solid #e1e5ee; text-transform: uppercase;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${logHtml}
+                </tbody>
+            </table>
+            
+            <div style="border-top: 2px dashed #b2bec3; padding-top: 15px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="font-weight: 700; font-size: 13px; color: #636e72;">Total Jam Bekerja:</span>
+                    <span style="font-weight: 800; font-size: 13px; color: #1D407A;">${summary.totalJam} Jam</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #F4F7FF; padding: 12px; border-radius: 10px; margin-top: 10px;">
+                    <span style="font-weight: 800; font-size: 14px; color: #1D407A;">GAJI BERSIH</span>
+                    <span style="font-weight: 900; font-size: 18px; color: #2ecc71;">Rp ${Number(summary.totalGaji).toLocaleString('id-ID')}</span>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 35px; font-size: 9px; color: #b2bec3;">
+                <p style="margin:0;">Dokumen ini dicetak otomatis oleh Sistem Segoo.Ro</p>
+                <p style="margin:2px 0 0 0;">Harap simpan dengan baik.</p>
+            </div>
+        `;
+
+        Swal.fire({
+            title: 'Mempersiapkan Slip...',
+            text: 'Sedang merender PDF',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading() }
+        });
+
+        let opt = {
+            margin:       [5, 5, 5, 5],
+            filename:     `Slip_Gaji_${nama}_${startTgl}_${endTgl}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'mm', format: 'a5', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(slipContainer).save().then(() => {
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil!',
+                text: 'PDF berhasil terbuat!',
+                confirmButtonColor: '#1D407A'
+            });
+        }).catch(err => {
+            Swal.fire('Gagal', 'Tidak dapat membuat PDF: ' + err.message, 'error');
+        });
+    }
+
     function editLog(comboId, masuk, pulang) {
-        // Ekstrak data dari ID gabungan
         let [idMasuk, idPulang, tglISO, namaPegawai] = comboId.split('|');
 
         Swal.fire({
@@ -1074,25 +1171,21 @@
                 Swal.fire({title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() }});
                 try {
                     const batch = db.batch();
-                    const tglFormat = tglISO.split('-').reverse().join('/'); // Mengubah YYYY-MM-DD jadi DD/MM/YYYY
+                    const tglFormat = tglISO.split('-').reverse().join('/'); 
                     
-                    // Modifikasi Jam Datang
                     if (r.value.in) {
                         if (idMasuk) {
                             batch.update(db.collection('presensi').doc(idMasuk), { waktu: r.value.in });
                         } else {
-                            // Buat dokumen baru jika sebelumnya kosong (lupa absen masuk)
                             let newRef = db.collection('presensi').doc();
                             batch.set(newRef, { nama: namaPegawai, tipe: "Datang", tanggalISO: tglISO, tanggal: tglFormat, waktu: r.value.in });
                         }
                     }
                     
-                    // Modifikasi Jam Pulang
                     if (r.value.out) {
                         if (idPulang) {
                             batch.update(db.collection('presensi').doc(idPulang), { waktu: r.value.out });
                         } else {
-                            // Buat dokumen baru jika sebelumnya kosong (lupa absen pulang)
                             let newRef = db.collection('presensi').doc();
                             batch.set(newRef, { nama: namaPegawai, tipe: "Pulang", tanggalISO: tglISO, tanggal: tglFormat, waktu: r.value.out });
                         }
@@ -1100,7 +1193,7 @@
                     
                     await batch.commit();
                     Swal.fire('Berhasil!', 'Data absensi diperbarui ke Pangkalan Data.', 'success'); 
-                    loadPresensiGaji(); // Segarkan kalkulasi gaji
+                    loadPresensiGaji(); 
                 } catch(err) {
                     Swal.fire('Error', err.message, 'error');
                 }
