@@ -303,6 +303,10 @@
                     <input type="date" id="rekapStart" class="form-control form-control-sm border-gray-300">
                     <input type="date" id="rekapEnd" class="form-control form-control-sm border-gray-300">
                     <button class="btn btn-primary btn-sm px-3 shadow-sm" style="border-radius:10px;" onclick="loadRekapKeuangan()"><i class="bi bi-search"></i></button>
+                    <!-- Tombol Sync Keuangan Baru -->
+                    <button class="btn btn-outline-secondary btn-sm px-3" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogKeuangan()" title="Tarik dari Sheets">
+                        <i class="bi bi-arrow-repeat fs-6 text-primary"></i>
+                    </button>
                 </div>
 
                 <div class="finance-card card-green">
@@ -1117,6 +1121,90 @@
 
     function handleLogout() {
         Swal.fire({ title: 'Keluar?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e74c3c', confirmButtonText: 'Ya' }).then((result) => { if (result.isConfirmed) firebase.auth().signOut(); });
+    }
+
+    // ==========================================
+    // SINKRONISASI KEUANGAN (SHEETS -> FIRESTORE)
+    // ==========================================
+    async function syncLogKeuangan() {
+        const start = document.getElementById('rekapStart').value;
+        const end = document.getElementById('rekapEnd').value;
+        
+        if (!start || !end) return Swal.fire('Oops', 'Tentukan rentang tanggal filter terlebih dahulu.', 'warning');
+
+        Swal.fire({ 
+            title: 'Menyinkronkan Keuangan...', 
+            text: `Menarik data dari Sheets...`, 
+            allowOutsideClick: false, 
+            didOpen: () => Swal.showLoading() 
+        });
+
+        try {
+            // Panggil API GAS. (Menggunakan action 'getRekapData' sesuai fungsi rekap di GAS-mu)
+            const resData = await gasAPI('getRekapData', { startDate: start, endDate: end });
+            
+            // Deteksi format response (beradaptasi apakah array of arrays atau array of objects)
+            let items = Array.isArray(resData) ? resData : (resData.data || []);
+            if (!items || items.length === 0) throw new Error("Data di Sheets kosong untuk rentang tanggal tersebut.");
+
+            const batch = db.batch();
+
+            items.forEach((row, i) => {
+                // Adaptasi cerdas membaca index kolom (Tgl, Tunai, QRIS, Shopee, Grab, Pengeluaran)
+                let tglVal = Array.isArray(row) ? row[0] : row.tanggal;
+                let tunai = Array.isArray(row) ? (parseFloat(row[1]) || 0) : (parseFloat(row.tunai) || 0);
+                let qris = Array.isArray(row) ? (parseFloat(row[2]) || 0) : (parseFloat(row.qris) || 0);
+                let shopee = Array.isArray(row) ? (parseFloat(row[3]) || 0) : (parseFloat(row.shopee) || 0);
+                let grab = Array.isArray(row) ? (parseFloat(row[4]) || 0) : (parseFloat(row.grab) || 0);
+                let pengeluaran = Array.isArray(row) ? (parseFloat(row[5]) || 0) : (parseFloat(row.pengeluaran) || 0);
+
+                if (!tglVal) return; // Lewati jika baris kosong
+
+                // Konversi format ke YYYY-MM-DD jika dari sheets bentuknya DD/MM/YYYY
+                let tglISO = tglVal;
+                if (tglISO.includes('/')) {
+                    let p = tglISO.split('/');
+                    tglISO = p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : tglISO;
+                }
+
+                let totalJual = tunai + qris + shopee + grab;
+                
+                // Buat rincian pengeluaran "dummy" agar uang keluar tetap terhitung saat rekap Firebase
+                let expList = [];
+                if (pengeluaran > 0) {
+                    expList.push({
+                        id: `sync_sheets_${Date.now()}_${i}`,
+                        item: "Rekap Migrasi dari Sheets",
+                        kategori: "Lainnya",
+                        jumlah: 1,
+                        satuan: "Ls",
+                        harga: pengeluaran
+                    });
+                }
+
+                // Masukkan ke koleksi laporan_keuangan Firebase
+                let docRef = db.collection('laporan_keuangan').doc(tglISO);
+                batch.set(docRef, {
+                    tanggal: tglISO,
+                    penjualan: { tunai: tunai, qris: qris, shopee: shopee, grab: grab },
+                    total_penjualan: totalJual,
+                    pengeluaran_list: expList, // Timpa rincian dengan data agregat sheets
+                    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+                    is_sync: true
+                }, { merge: true }); // merge=true agar tidak menghapus jika kebetulan sudah ada
+            });
+
+            // Eksekusi penulisan massal (Batch Write)
+            await batch.commit();
+            
+            Swal.fire('Sukses!', 'Data Keuangan dari Google Sheets berhasil diamankan ke Firebase.', 'success');
+            
+            // Otomatis refresh tampilan tabel rekap setelah sinkronisasi
+            loadRekapKeuangan();
+            
+        } catch (err) { 
+            Swal.fire('Gagal Sync', err.message, 'error'); 
+        }
     }
 </script>
 
