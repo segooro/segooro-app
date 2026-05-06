@@ -377,6 +377,26 @@
 
     const API_URL = "https://script.google.com/macros/s/AKfycbyEyzRPvKN_H9OTxCe6YzLVFLegtIwB73lagp0weSoSgPjFfHtTxFsL77l75bD8JrOQ/exec";
 
+    // ==========================================
+    // GLOBAL STATE & VARIABLES
+    // ==========================================
+    let now = new Date();
+    let adminFilter = { 
+        start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0], 
+        end: now.toISOString().split('T')[0], 
+        name: "", 
+        stockDate: now.toISOString().split('T')[0] 
+    };
+    let currentStockData = [];
+    let aiBase64Image = "";
+    let tempAiItems = [];
+    let globalRecipes = null;
+    let currentPayrollData = null; 
+    const TARIF_GAJI_PER_JAM = 10000; 
+
+    // ==========================================
+    // 2. SISTEM NAVIGASI PWA & KEUANGAN
+    // ==========================================
     async function gasAPI(action, payload = {}) {
         payload.action = action;
         try {
@@ -387,9 +407,6 @@
         } catch (error) { throw error; }
     }
 
-    // ==========================================
-    // 2. SISTEM NAVIGASI PWA & KEUANGAN
-    // ==========================================
     window.onload = () => {
         const stockDateInput = document.getElementById('stockDate');
         if (stockDateInput && !stockDateInput.value) { stockDateInput.valueAsDate = new Date(); }
@@ -523,7 +540,6 @@
         } catch (err) { Swal.fire('Error', err.message, 'error'); }
     }
 
-    let aiBase64Image = "";
     function previewStruk(event) {
         const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
@@ -539,6 +555,7 @@
     async function prosesStrukGemini() {
         if (!aiBase64Image) return;
         if (GEMINI_API_KEY.includes("ISI_API_KEY")) return Swal.fire('Info', 'Harap masukkan API Key Gemini di kode JS.', 'info');
+
         Swal.fire({ title: 'AI Membaca Struk...', text: 'Membutuhkan beberapa detik', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
 
         const pureBase64 = aiBase64Image.split(',')[1];
@@ -566,7 +583,6 @@
         } catch (err) { Swal.fire('Gagal', 'AI Error: ' + err.message, 'error'); }
     }
 
-    let tempAiItems = [];
     function renderAiItemsForm(items) {
         tempAiItems = items; const listDiv = document.getElementById('aiItemList'); listDiv.innerHTML = "";
         items.forEach((item, idx) => {
@@ -653,8 +669,6 @@
     // ==========================================
     // 4. FITUR KALKULATOR & BELANJA (FIRESTORE)
     // ==========================================
-    let globalRecipes = null;
-    
     function formatRecipeName(key) {
         const names = { 's_bawang': 'Sambal Bawang', 's_ijo': 'Sambal Ijo', 's_terasi': 'Sambal Terasi', 'ungkep': 'Ayam Ungkep', 'daging_koyor': 'Daging Koyor', 'iga': 'Iga' };
         return names[key] || key;
@@ -747,8 +761,6 @@
     // ==========================================
     // 5. LOGIN, PRESENSI, GAJI & STOK
     // ==========================================
-    let currentPayrollData = null; const TARIF_GAJI_PER_JAM = 10000;
-    
     function calculateHours(timeIn, timeOut) {
         if (!timeIn || !timeOut || timeIn === '..' || timeOut === '..') return 0;
         let [inH, inM] = timeIn.split(':').map(Number); let [outH, outM] = timeOut.split(':').map(Number);
@@ -848,7 +860,7 @@
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;"><span style="font-weight: 700; font-size: 13px; color: #636e72;">Total Jam Bekerja:</span><span style="font-weight: 800; font-size: 13px; color: #1D407A;">${summary.totalJam} Jam</span></div>
                 <div style="display: flex; justify-content: space-between; align-items: center; background: #F4F7FF; padding: 12px; border-radius: 10px; margin-top: 10px;"><span style="font-weight: 800; font-size: 14px; color: #1D407A;">GAJI BERSIH</span><span style="font-weight: 900; font-size: 18px; color: #2ecc71;">Rp ${Number(summary.totalGaji).toLocaleString('id-ID')}</span></div>
             </div>
-            <div style="text-align: center; margin-top: 35px; font-size: 9px; color: #b2bec3;"><p style="margin:0;">PDF berhasil terbuat!</p></div>
+            <div style="text-align: center; margin-top: 35px; font-size: 9px; color: #b2bec3;"><p style="margin:0;">Dicetak otomatis oleh Sistem Segoo.Ro</p><p style="margin:2px 0 0 0;">Harap simpan dengan baik.</p></div>
         `;
 
         Swal.fire({ title: 'Mempersiapkan Slip...', text: 'Sedang merender PDF', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
@@ -919,7 +931,7 @@
 
         navigator.geolocation.getCurrentPosition(async (pos) => {
             try {
-                const now = new Date(); const tanggalStr = now.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'}); const waktuStr = now.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}); const isoDate = now.toISOString().split('T')[0]; 
+                const nowLocal = new Date(); const tanggalStr = nowLocal.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'}); const waktuStr = nowLocal.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}); const isoDate = nowLocal.toISOString().split('T')[0]; 
                 await db.collection('presensi').add({ nama: name, email: user.email, tipe: type, tanggal: tanggalStr, tanggalISO: isoDate, waktu: waktuStr, timestamp: firebase.firestore.FieldValue.serverTimestamp(), lat: pos.coords.latitude, lng: pos.coords.longitude });
                 btn.disabled = false; btn.innerHTML = "Absen Sekarang"; Swal.fire({ icon: 'success', title: 'Berhasil!', text: `Presensi ${type} a/n ${name} tercatat!`});
             } catch (err) { btn.disabled = false; btn.innerHTML = "Absen Sekarang"; Swal.fire({ icon: 'error', title: 'Gagal Menyimpan', text: err.message}); }
@@ -989,51 +1001,6 @@
             html += `</div>`; 
         });
         listContainer.innerHTML = html;
-    }
-
-    async function loadPemantau() {
-        const content = document.getElementById('pemantauContent'); content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Menyadap CCTV Firestore...</p></div>';
-        try {
-            const dateStr = adminFilter.stockDate; const docRef = await db.collection('laporan_stok').doc(dateStr).get();
-            if (!docRef.exists) {
-                content.innerHTML = `<div class="filter-box mb-3 shadow-sm"><label class="small fw-bold mb-2 text-muted">Filter Tanggal Laporan</label><div class="d-flex gap-2 mb-3"><input type="date" id="adminStockDate" class="form-control form-control-sm" value="${dateStr}" style="border-radius: 10px;"><button class="btn btn-primary btn-sm px-3" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i></button><button class="btn btn-outline-secondary btn-sm px-3" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogStok()" title="Tarik dari Sheets"><i class="bi bi-arrow-repeat fs-6 text-primary"></i></button></div></div><div class="text-center mt-5 text-muted animate__animated animate__fadeIn"><i class="bi bi-inboxes-fill d-block mb-3" style="font-size: 3rem; color: #b2bec3;"></i><h6 class="fw-bold">Laporan Belum Dibuat</h6><small>Belum ada aktivitas stok dari karyawan.</small></div>`; return;
-            }
-            const data = docRef.data(); let rawItems = data.items;
-            let processedStocks = rawItems.map(item => {
-                let currentStock = item.akhir !== "" ? item.akhir : (item.awal + item.masuk - item.terbuang);
-                let alertLevel = 0; let status = "AMAN"; let color = "#2ecc71"; 
-                if (currentStock <= 0) { alertLevel = 2; status = "HABIS"; color = "#e74c3c"; } else if (currentStock <= 5) { alertLevel = 1; status = "MENIPIS"; color = "#feca57"; }
-                return { ...item, currentStock: currentStock, alertLevel: alertLevel, status: status, color: color, perputaran: `In: ${item.masuk} | Out: ${item.terbuang}` };
-            });
-            renderStockMonitorGrid(processedStocks, data.status, data.operator, data.last_updated);
-        } catch (err) { content.innerHTML = `<div class="alert alert-danger m-3 small">${err.message}</div>`; }
-    }
-
-    function applyStockFilter() { adminFilter.stockDate = document.getElementById('adminStockDate').value; loadPemantau(); }
-
-    function renderStockMonitorGrid(stocks, reportStatus = "Sedang Berjalan", operator = "-", lastUpdated) {
-        const content = document.getElementById('pemantauContent');
-        if(!stocks || stocks.length === 0) return content.innerHTML = '<p class="text-center text-muted mt-4">Belum ada data stok.</p>';
-        const criticalCount = stocks.filter(s => s.alertLevel === 2).length; const warningCount = stocks.filter(s => s.alertLevel === 1).length; const categories = [...new Set(stocks.map(s => s.kategori))];
-        let timeString = lastUpdated ? lastUpdated.toDate().toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}) : 'Baru saja';
-        let statusBadge = reportStatus === "Tutup Buku" ? `<span class="badge bg-success shadow-sm"><i class="bi bi-check-circle-fill me-1"></i> Tutup Buku</span>` : `<span class="badge bg-warning text-dark shadow-sm"><i class="bi bi-arrow-repeat me-1"></i> Berjalan</span>`;
-        let html = `
-            <div class="filter-box mb-3 shadow-sm"><label class="small fw-bold mb-2 text-muted">Filter Tanggal Laporan</label><div class="d-flex gap-2 mb-3"><input type="date" id="adminStockDate" class="form-control form-control-sm" value="${adminFilter.stockDate}" style="border-radius: 10px;"><button class="btn btn-primary btn-sm px-3" style="background:var(--primary-gradient); border:none; border-radius: 10px;" onclick="applyStockFilter()"><i class="bi bi-search"></i></button><button class="btn btn-outline-secondary btn-sm px-3" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogStok()" title="Tarik dari Sheets"><i class="bi bi-arrow-repeat fs-6 text-primary"></i></button></div><div class="p-2" style="background: #f8f9fa; border-radius: 10px; font-size: 0.75rem; border: 1px solid #e1e5ee;"><div class="d-flex justify-content-between align-items-center mb-1"><span class="text-muted fw-bold">Status Laporan:</span> ${statusBadge}</div><div class="d-flex justify-content-between align-items-center"><span class="text-muted fw-bold">Operator Terakhir:</span> <span class="fw-bold text-primary">${operator} (${timeString})</span></div></div></div>
-            <div class="alert-banner"><div class="alert-box" style="background: linear-gradient(135deg, #ff6b6b, #e74c3c);"><h3 class="mb-0 fw-bold">${criticalCount}</h3><small style="font-size: 0.65rem; font-weight: bold;">RESTOK SEGERA</small></div><div class="alert-box" style="background: linear-gradient(135deg, #feca57, #f39c12);"><h3 class="mb-0 fw-bold">${warningCount}</h3><small style="font-size: 0.65rem; font-weight: bold;">STOK MENIPIS</small></div></div>`;
-        
-        function toggleCat(id) { const container = document.getElementById(id); const icon = document.getElementById('icon-' + id); if (container.style.display === 'none') { container.style.display = 'grid'; icon.style.transform = 'rotate(0deg)'; } else { container.style.display = 'none'; icon.style.transform = 'rotate(-90deg)'; } }
-        window.toggleCat = toggleCat; 
-
-        categories.forEach((cat, index) => {
-            const items = stocks.filter(s => s.kategori === cat);
-            html += `<div class="category-header-wrapper shadow-sm" onclick="toggleCat('cat-${index}')" style="border-radius: 12px;"><h6 class="stock-category-header"><i class="bi bi-chevron-down me-2" id="icon-cat-${index}" style="transform: rotate(-90deg); display: inline-block;"></i> ${cat}</h6></div><div class="stock-grid-container" id="cat-${index}" style="display: none;">`;
-            items.forEach(s => {
-                const liveStock = s.akhir !== "" ? s.akhir : s.currentStock;
-                html += `<div class="stock-card-mini shadow-sm" style="border-radius: 16px; border: none;"><div style="position: absolute; top: 15px; bottom: 15px; left: 0; width: 4px; border-radius: 0 4px 4px 0; background: ${s.color};"></div><div class="ms-2 d-flex justify-content-between align-items-start"><div><div class="fw-bold" style="font-size:0.85rem; color: #2d3436; margin-bottom: 4px;">${s.nama}</div><span class="badge text-secondary" style="background: #f1f2f6; font-size: 0.6rem; border: 1px solid #e1e5ee;">Satuan: ${s.satuan}</span></div><div class="badge-perputaran" style="position:static; font-size:0.55rem; background: #eef2fa; color: #667eea; padding: 3px 8px; border-radius: 6px;">${s.perputaran}</div></div><div class="row g-2 ms-1 mt-2"><div class="col-4"><div class="p-2 text-center" style="background: #f8f9fa; border: 1px dashed #cbd5e1; border-radius: 10px;"><span class="d-block fs-5 fw-bold text-dark">${s.awal}</span><span style="font-size:0.5rem; color:#64748b;">Awal</span></div></div><div class="col-4"><div class="p-2 text-center" style="background: rgba(46,204,113,0.1); border-radius: 10px;"><span class="d-block fs-5 fw-bold text-success">${s.masuk}</span><span style="font-size:0.5rem; color:#27ae60;">Masuk</span></div></div><div class="col-4"><div class="p-2 text-center" style="background: rgba(231,76,60,0.1); border-radius: 10px;"><span class="d-block fs-5 fw-bold text-danger">${s.terbuang}</span><span style="font-size:0.5rem; color:#c0392b;">Buang</span></div></div><div class="col-12 mt-2"><div class="p-2 d-flex justify-content-between align-items-center" style="background: #f0f4f8; border: 1px solid #94a3b8; border-radius: 10px;"><span style="font-size:0.6rem; color:#475569; font-weight:bold; text-transform:uppercase;">Estimasi Stok Terkini:</span><span class="fs-4 fw-bold text-dark">${liveStock}</span></div></div></div><div class="text-center mt-2 ms-2" style="font-size: 0.65rem; color: ${s.color}; font-weight: 800; background: ${s.color}15; padding: 6px; border-radius: 8px;">STATUS: ${s.status}</div></div>`;
-            });
-            html += `</div>`;
-        });
-        content.innerHTML = html;
     }
 
     firebase.auth().onAuthStateChanged(async (user) => {
