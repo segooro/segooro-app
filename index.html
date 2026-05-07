@@ -635,7 +635,7 @@
 
     // --- LOGIKA RIWAYAT & EDIT PENGELUARAN (FULL BARU) ---
     
-    /async function loadExpenseHistory(resetPage = true) {
+    async function loadExpenseHistory(resetPage = true) {
         const startTgl = document.getElementById('historyDateStart').value;
         const endTgl = document.getElementById('historyDateEnd').value;
         if(!startTgl || !endTgl) return;
