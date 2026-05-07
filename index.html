@@ -275,16 +275,14 @@
                         </div>
                         
                         <div class="glass-card mb-3 p-2">
-                            <div class="row g-2">
-                                <div class="col-5">
-                                    <input type="date" id="historyDateFilter" class="form-control form-control-sm" style="border-radius:10px;" onchange="loadExpenseHistory()">
-                                </div>
-                                <div class="col-7">
-                                    <div class="input-group input-group-sm">
-                                        <span class="input-group-text bg-light" style="border-radius:10px 0 0 10px; border:2px solid #f1f2f6; border-right:none;"><i class="bi bi-search text-muted"></i></span>
-                                        <input type="text" id="historySearchInput" class="form-control" placeholder="Cari barang..." style="border-radius:0 10px 10px 0;" onkeyup="loadExpenseHistory(false)">
-                                    </div>
-                                </div>
+                            <div class="d-flex gap-2 mb-2">
+                                <input type="date" id="historyDateStart" class="form-control form-control-sm" style="border-radius:10px;" onchange="loadExpenseHistory(true)">
+                                <span class="text-muted d-flex align-items-center">-</span>
+                                <input type="date" id="historyDateEnd" class="form-control form-control-sm" style="border-radius:10px;" onchange="loadExpenseHistory(true)">
+                            </div>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light" style="border-radius:10px 0 0 10px; border:2px solid #f1f2f6; border-right:none;"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="historySearchInput" class="form-control" placeholder="Cari nama barang..." style="border-radius:0 10px 10px 0;" onkeyup="loadExpenseHistory(false)">
                             </div>
                         </div>
 
@@ -562,11 +560,16 @@
         document.getElementById('keuTglPenjualan').value = today;
         document.getElementById('keuTglKeluar').value = today;
         document.getElementById('keuTglAi').value = today;
-        document.getElementById('historyDateFilter').value = today; // Filter riwayat default hari ini (Baru)
 
         let firstDay = new Date(); firstDay.setDate(1);
-        if(!document.getElementById('rekapStart').value) document.getElementById('rekapStart').value = firstDay.toISOString().split('T')[0];
-        if(!document.getElementById('rekapEnd').value) document.getElementById('rekapEnd').value = today;
+        let firstDayStr = firstDay.toISOString().split('T')[0];
+
+        document.getElementById('rekapStart').value = firstDayStr;
+        document.getElementById('rekapEnd').value = today;
+
+        // Set default filter riwayat dari tgl 1 s/d hari ini
+        document.getElementById('historyDateStart').value = firstDayStr; 
+        document.getElementById('historyDateEnd').value = today;
     }
 
     // ==========================================
@@ -612,27 +615,30 @@
         Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
 
         try {
-            // Beri ID unik agar bisa diedit nanti
             const expData = { id: 'manual_' + Date.now().toString(), item: item.trim(), kategori: kat, jumlah: jml, satuan: sat, harga: hrg };
             await db.collection('laporan_keuangan').doc(tgl).set({
                 tanggal: tgl, pengeluaran_list: firebase.firestore.FieldValue.arrayUnion(expData), last_updated: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
+            
             Swal.fire('Berhasil!', 'Data Pengeluaran tersimpan.', 'success');
+            
             document.getElementById('keuItem').value = ""; document.getElementById('keuJumlah').value = ""; document.getElementById('keuHarga').value = "";
             
-            // Jika tanggal simpan sama dengan tanggal filter riwayat, reload riwayat (Baru)
-            if(tgl === document.getElementById('historyDateFilter').value) {
-                loadExpenseHistory();
+            // Reload riwayat jika tgl masuk range
+            const startTgl = document.getElementById('historyDateStart').value;
+            const endTgl = document.getElementById('historyDateEnd').value;
+            if(tgl >= startTgl && tgl <= endTgl) {
+                loadExpenseHistory(true);
             }
         } catch (err) { Swal.fire('Error', err.message, 'error'); }
     }
 
     // --- LOGIKA RIWAYAT & EDIT PENGELUARAN (FULL BARU) ---
     
-    // 1. Ambil Data mentah dari DB berdasarkan Tanggal Filter
-    async function loadExpenseHistory(resetPage = true) {
-        const tglFilter = document.getElementById('historyDateFilter').value;
-        if(!tglFilter) return;
+    /async function loadExpenseHistory(resetPage = true) {
+        const startTgl = document.getElementById('historyDateStart').value;
+        const endTgl = document.getElementById('historyDateEnd').value;
+        if(!startTgl || !endTgl) return;
 
         const listCont = document.getElementById('expenseHistoryList');
         const pagCont = document.getElementById('historyPagination');
@@ -646,22 +652,33 @@
         countLbl.innerText = "0 Item";
 
         try {
-            // Jika resetPage true (ganti tanggal), tarik ulang dari DB
             if(resetPage) {
-                const doc = await db.collection('laporan_keuangan').doc(tglFilter).get();
+                // Tarik banyak tanggal sekaligus menggunakan Range
+                const snapshot = await db.collection('laporan_keuangan')
+                    .where('tanggal', '>=', startTgl)
+                    .where('tanggal', '<=', endTgl)
+                    .get();
+                
                 rawHistoryData = [];
-                if(doc.exists && doc.data().pengeluaran_list) {
-                    rawHistoryData = doc.data().pengeluaran_list;
-                    // Urutkan terbaru di atas berdasarkan ID (asumsi ID mengandung timestamp)
-                    rawHistoryData.sort((a,b) => {
-                        let timeA = a.id.split('_')[1] || 0;
-                        let timeB = b.id.split('_')[1] || 0;
-                        return timeB - timeA;
-                    });
-                }
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if(data.pengeluaran_list && data.pengeluaran_list.length > 0) {
+                        data.pengeluaran_list.forEach(expItem => {
+                            // Selipkan tanggal doc ke objek agar bisa di-edit
+                            expItem.docTanggal = data.tanggal; 
+                            rawHistoryData.push(expItem);
+                        });
+                    }
+                });
+
+                // Urutkan dari terbaru
+                rawHistoryData.sort((a,b) => {
+                    let timeA = a.id.split('_')[1] || 0;
+                    let timeB = b.id.split('_')[1] || 0;
+                    return timeB - timeA;
+                });
             }
 
-            // 2. Terapkan Filter Pencarian Lokal (Lokal biar cepat)
             if(!query) {
                 filteredHistoryData = [...rawHistoryData];
             } else {
@@ -672,8 +689,6 @@
             }
 
             countLbl.innerText = filteredHistoryData.length + " Item";
-            
-            // 3. Terapkan Paginasi & Render (Client-Side Paginasi)
             renderHistoryPage();
 
         } catch (err) {
@@ -681,26 +696,23 @@
             listCont.innerHTML = `<div class="text-center text-danger py-3 small">Gagal memuat: ${err.message}</div>`;
         }
     }
-
     // 2. Render halaman aktif ke UI (Mirip Foto 2)
     function renderHistoryPage() {
         const listCont = document.getElementById('expenseHistoryList');
         listCont.innerHTML = "";
 
         if(filteredHistoryData.length === 0) {
-            listCont.innerHTML = '<div class="text-center text-muted py-4 smallanimate__animated animate__fadeIn">Tidak ada data.</div>';
+            listCont.innerHTML = '<div class="text-center text-muted py-4 small animate__animated animate__fadeIn">Tidak ada data.</div>';
             renderHistoryPagination(0);
             return;
         }
 
-        // Hitung index untuk potong array
         const startIndex = (historyCurrentPage - 1) * itemsPerPage;
         const endIndex = startIndex + itemsPerPage;
         const paginatedItems = filteredHistoryData.slice(startIndex, endIndex);
 
         let html = '<div class="animate__animated animate__fadeIn">';
         paginatedItems.forEach(exp => {
-            // Tentukan warna border kategori (opsional biar cantik)
             let borderColor = '#ddd';
             if(exp.kategori === 'Bahan Pokok') borderColor = '#3498db';
             else if(exp.kategori === 'Operasional') borderColor = '#f1c40f';
@@ -711,6 +723,7 @@
                     <div class="hist-item-info">
                         <div class="hist-item-title">${exp.item}</div>
                         <div class="hist-item-meta">
+                            <span class="badge bg-light text-secondary border" style="font-size:0.55rem; padding: 3px 5px;">${exp.docTanggal.split('-').reverse().join('/')}</span>
                             <span class="badge bg-light text-secondary" style="font-size:0.6rem; padding: 3px 6px;">${exp.kategori}</span>
                             <span>${exp.jumlah} ${exp.satuan}</span>
                         </div>
@@ -772,13 +785,12 @@
 
     // 5. Buka Modal Edit Pengeluaran (SweetAlert2)
     async function openEditExpenseModal(expId) {
-        // Cari data item di array lokal
         const expData = rawHistoryData.find(item => item.id === expId);
         if(!expData) return Swal.fire('Error', 'Data tidak ditemukan.', 'error');
         
-        const tglAktif = document.getElementById('historyDateFilter').value;
+        // Tarik tanggal dari properti objek yang diselipkan saat load
+        const tglAktif = expData.docTanggal;
 
-        // Siapkan Opsi HTML Select dinamis (pakai data yang sudah dimuat dari Firebase)
         const katOptionsHtml = KATEGORI_OPTIONS.map(k => `<option value="${k}" ${k === expData.kategori ? 'selected' : ''}>${k}</option>`).join('');
         const satOptionsHtml = SATUAN_OPTIONS.map(s => `<option value="${s}" ${s === expData.satuan ? 'selected' : ''}>${s}</option>`).join('');
 
@@ -824,11 +836,17 @@
                     Swal.showValidationMessage(`Harap lengkapi semua data.`);
                     return false;
                 }
-                return { item: newItem, kategori: newKat, harga: newHarga, jumlah: newJml, satuan: newSat };
+                
+                // Jangan lupa hapus 'docTanggal' karena tidak boleh disimpan di Firestore
+                let cleanExpData = { ...expData };
+                delete cleanExpData.docTanggal;
+
+                return { updatedData: { item: newItem, kategori: newKat, harga: newHarga, jumlah: newJml, satuan: newSat }, oldData: cleanExpData };
             }
         }).then(async (result) => {
             if (result.isConfirmed) {
-                performUpdateExpense(tglAktif, expData, result.value);
+                // panggil fungsi performUpdateExpense (tidak ada yg diubah dari fungsi performUpdateExpense)
+                performUpdateExpense(tglAktif, result.value.oldData, result.value.updatedData);
             }
         });
     }
