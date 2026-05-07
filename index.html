@@ -1164,8 +1164,13 @@
 
             let grouped = {}; let employeeSet = new Set();
             rawData.forEach(item => {
-                employeeSet.add(item.nama); let key = `${item.tanggalISO}_${item.nama}`;
-                if (!grouped[key]) grouped[key] = { tanggal: item.tanggal, tanggalISO: item.tanggalISO, nama: item.nama, masuk: '..', pulang: '..', idMasuk: '', idPulang: '' };
+                // BARIS AJAIB: Otomatis ubah semua variasi nama jadi HURUF BESAR agar tidak dobel!
+                let namaKapital = (item.nama || "").toUpperCase(); 
+                
+                employeeSet.add(namaKapital); 
+                let key = `${item.tanggalISO}_${namaKapital}`;
+                
+                if (!grouped[key]) grouped[key] = { tanggal: item.tanggal, tanggalISO: item.tanggalISO, nama: namaKapital, masuk: '..', pulang: '..', idMasuk: '', idPulang: '' };
                 if (item.tipe === "Datang") { grouped[key].masuk = item.waktu; grouped[key].idMasuk = item.id; } 
                 else if (item.tipe === "Pulang") { grouped[key].pulang = item.waktu; grouped[key].idPulang = item.id; }
             });
