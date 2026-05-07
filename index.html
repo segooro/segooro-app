@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Segoo.Ro - All in One App</title>
-    <!-- PWA Meta Tags -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#1D407A">
     <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png">
@@ -13,7 +12,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
-    <!-- Pustaka Pembuat PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
     <style>
@@ -87,7 +85,6 @@
         .nav-item.active { color: var(--primary-solid); }
         .nav-item.active i { transform: scale(1.15); color: var(--primary-solid); }
     </style>
-    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -95,7 +92,6 @@
 <body>
 
 <div class="app-container">
-    <!-- HALAMAN LOGIN -->
     <div id="pageLogin" class="view-page active">
         <div class="text-center mb-5 mt-4 animate__animated animate__fadeInDown">
             <img src="https://raw.githubusercontent.com/Dakrooon/img/main/segooro.png" alt="Logo Segoo.Ro" style="max-width: 200px; margin-bottom: 15px;">
@@ -126,7 +122,6 @@
         </div>
     </div>
 
-    <!-- HALAMAN PRESENSI -->
     <div id="pagePresensi" class="view-page">
         <div class="d-flex justify-content-between align-items-center mb-4 mt-2 animate__animated animate__fadeInDown">
             <div>
@@ -151,7 +146,6 @@
         </div>
     </div>
 
-    <!-- HALAMAN INPUT STOK -->
     <div id="pageStok" class="view-page">
         <div class="d-flex justify-content-between align-items-center mb-4 mt-2">
             <div>
@@ -172,7 +166,6 @@
         </div>
     </div>
 
-    <!-- HALAMAN KALKULATOR -->
     <div id="pageKalkulator" class="view-page">
         <div class="header-profile">
             <div class="greeting"><h1>Kalkulator,</h1><p>RESEP SEGOO.RO</p></div>
@@ -180,7 +173,6 @@
         <div id="kalkulatorContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
 
-    <!-- HALAMAN BELANJA -->
     <div id="pageBelanja" class="view-page">
         <div class="header-profile">
             <div class="greeting"><h1>Daftar,</h1><p>BELANJA PASAR</p></div>
@@ -188,7 +180,6 @@
         <div id="belanjaContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
 
-    <!-- HALAMAN PANTAU STOK -->
     <div id="pagePemantau" class="view-page">
         <div class="header-profile">
             <div class="greeting"><h1>Pantau,</h1><p>STOK HARI INI</p></div>
@@ -196,7 +187,6 @@
         <div id="pemantauContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
 
-    <!-- HALAMAN PRESENSI & GAJI -->
     <div id="pagePresensiGaji" class="view-page">
         <div class="header-profile">
             <div class="greeting"><h1>Rekap,</h1><p>PRESENSI & GAJI</p></div>
@@ -204,13 +194,11 @@
         <div id="presensiGajiContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;"></div>
     </div>
 
-    <!-- HALAMAN KEUANGAN -->
     <div id="pageKeuangan" class="view-page">
         <div class="header-profile">
             <div class="greeting"><h1>Laporan,</h1><p>KEUANGAN</p></div>
         </div>
         
-        <!-- SUB-NAVIGASI KEUANGAN -->
         <div class="d-flex justify-content-between p-1 bg-white shadow-sm mb-3" style="border-radius: 15px;">
             <button id="btnTabPenjualan" class="btn flex-fill fw-bold text-primary" style="border-radius: 12px; background: #eef2fa; font-size: 0.8rem;" onclick="switchKeuanganTab('penjualan')">Penjualan</button>
             <button id="btnTabPengeluaran" class="btn flex-fill fw-bold text-muted" style="border-radius: 12px; font-size: 0.8rem;" onclick="switchKeuanganTab('pengeluaran')">Pengeluaran</button>
@@ -219,7 +207,6 @@
 
         <div id="keuanganContent" style="flex: 1; overflow-y: auto; padding-bottom: 20px;">
             
-            <!-- TAB 1: FORM PENJUALAN -->
             <div id="tabPenjualan" class="animate__animated animate__fadeIn">
                 <div class="glass-input-group">
                     <div class="mb-3"><label>Tanggal</label><input type="date" id="keuTglPenjualan" class="form-control"></div>
@@ -240,14 +227,12 @@
                 <button class="btn-submit" onclick="simpanPenjualan()"><i class="bi bi-save me-2"></i> Simpan Penjualan</button>
             </div>
 
-            <!-- TAB 2: FORM PENGELUARAN -->
             <div id="tabPengeluaran" style="display: none;" class="animate__animated animate__fadeIn">
                 <div class="d-flex mb-3 gap-2">
                     <button id="btnSubManual" class="btn flex-fill fw-bold text-primary border shadow-sm" style="border-radius:12px; background:#eef2fa; font-size:0.75rem;" onclick="switchPengeluaranSubTab('manual')">Manual</button>
                     <button id="btnSubAi" class="btn flex-fill fw-bold text-muted border shadow-sm" style="border-radius:12px; background:white; font-size:0.75rem;" onclick="switchPengeluaranSubTab('ai')"><i class="bi bi-magic me-1"></i> Scan AI</button>
                 </div>
 
-                <!-- PENGELUARAN MANUAL -->
                 <div id="secManual">
                     <div class="glass-input-group">
                         <div class="mb-3"><label>Tanggal</label><input type="date" id="keuTglKeluar" class="form-control"></div>
@@ -272,7 +257,6 @@
                     <button class="btn-submit" style="background: linear-gradient(135deg, #e74c3c, #c0392b);" onclick="simpanPengeluaran()"><i class="bi bi-cart-dash me-2"></i> Simpan Pengeluaran</button>
                 </div>
 
-                <!-- PENGELUARAN SCAN AI -->
                 <div id="secAi" style="display: none;">
                     <div class="glass-input-group text-center">
                         <label class="text-start">Tanggal Struk</label>
@@ -288,7 +272,6 @@
                         <button id="btnProsesAi" class="btn btn-primary w-100 fw-bold" style="border-radius:12px; display:none;" onclick="prosesStrukGemini()"><i class="bi bi-stars"></i> Proses dengan AI</button>
                     </div>
 
-                    <!-- AREA HASIL AI -->
                     <div id="aiResultArea" style="display: none;">
                         <h6 class="fw-bold text-primary mb-2 px-1">Hasil Ekstraksi AI:</h6>
                         <div id="aiItemList" class="mb-3"></div>
@@ -297,13 +280,11 @@
                 </div>
             </div>
 
-            <!-- TAB 3: REKAP KEUANGAN (Owner Only) -->
             <div id="tabRekap" style="display: none;" class="animate__animated animate__fadeIn owner-only">
                 <div class="filter-box d-flex gap-2 mb-3">
                     <input type="date" id="rekapStart" class="form-control form-control-sm border-gray-300">
                     <input type="date" id="rekapEnd" class="form-control form-control-sm border-gray-300">
                     <button class="btn btn-primary btn-sm px-3 shadow-sm" style="border-radius:10px;" onclick="loadRekapKeuangan()"><i class="bi bi-search"></i></button>
-                    <!-- Tombol Sync Keuangan Baru (Sekarang fungsi Sedot Total) -->
                     <button class="btn btn-outline-secondary btn-sm px-3" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogKeuangan()" title="Tarik dari Sheets">
                         <i class="bi bi-arrow-repeat fs-6 text-primary"></i>
                     </button>
@@ -333,7 +314,6 @@
         </div>
     </div>
 
-    <!-- BOTTOM NAVIGATION -->
     <div class="bottom-nav">
         <a href="javascript:void(0)" id="nav-pagePresensi" onclick="switchPage('pagePresensi')" class="nav-item pegawai-only">
             <i class="bi bi-clock-history"></i><span>Presensi</span>
@@ -380,20 +360,35 @@
     const db = firebase.firestore();
 
     // ==========================================
+    // GLOBAL STATE & VARIABLES (JANGAN DIHAPUS)
+    // ==========================================
+    let now = new Date();
+    let adminFilter = { 
+        start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0], 
+        end: now.toISOString().split('T')[0], 
+        name: "", 
+        stockDate: now.toISOString().split('T')[0] 
+    };
+    
+    let currentStockData = [];
+    let aiBase64Image = "";
+    let tempAiItems = [];
+    let globalRecipes = null;
+    let currentPayrollData = null; 
+    const TARIF_GAJI_PER_JAM = 10000; 
+    let KATEGORI_OPTIONS = [];
+    let SATUAN_OPTIONS = [];
+
+    // ==========================================
     // LOGIKA MULTI-SPREADSHEET (ROUTER API)
     // ==========================================
     const API_URL_PRESENSI = "https://script.google.com/macros/s/AKfycbyEyzRPvKN_H9OTxCe6YzLVFLegtIwB73lagp0weSoSgPjFfHtTxFsL77l75bD8JrOQ/exec";
     const API_URL_KEUANGAN = "https://script.google.com/macros/s/AKfycbyx07tqgqgoVHS0K35ymJ5VysyTIGw4ETESJsLEI5qbXt9iHtlh6dw7GCBap92mylnVjw/exec";
 
-    // DROPDOWN DINAMIS (DARI FIREBASE)
-    let KATEGORI_OPTIONS = [];
-    let SATUAN_OPTIONS = [];
-
     async function gasAPI(action, payload = {}) {
         payload.action = action;
         
         let targetUrl = API_URL_PRESENSI;
-        // Penambahan exportAllKeuangan ke jalur Keuangan
         if (action === 'getRekapData' || action === 'savePenjualan' || action === 'savePengeluaran' || action === 'exportAllKeuangan') {
             targetUrl = API_URL_KEUANGAN;
         }
@@ -404,8 +399,7 @@
 
         try {
             const response = await fetch(targetUrl, { 
-                method: "POST", 
-                body: JSON.stringify(payload) 
+                method: "POST", body: JSON.stringify(payload) 
             });
             const res = await response.json();
             if (!res.success) throw new Error(res.message);
@@ -435,9 +429,7 @@
                 satSelect.innerHTML = '<option value="">Pilih Satuan...</option>' + 
                     SATUAN_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('');
             }
-        } catch (e) {
-            console.error("Gagal memuat dropdown: ", e);
-        }
+        } catch (e) { console.error("Gagal memuat dropdown: ", e); }
     }
 
     window.onload = () => {
@@ -462,7 +454,7 @@
         
         if (pageId === 'pageKeuangan') {
             setDefaultDateKeuangan();
-            loadKeuanganDropdowns(); // MEMANGGIL DROPDOWN SAAT TAB KEUANGAN DIBUKA
+            loadKeuanganDropdowns(); 
             const isOwner = document.querySelector('.owner-only').style.display !== 'none';
             switchKeuanganTab(isOwner ? 'rekap' : 'penjualan');
         }
@@ -623,12 +615,10 @@
             const safeName = item.item ? item.item.replace(/"/g, '&quot;') : '';
             const safeHarga = item.harga || 0; const safeJumlah = item.jumlah || 1;
             
-            // Opsi Satuan Dinamis
             let satuanHtml = `<option value="">Pilih...</option>`;
             if (SATUAN_OPTIONS.length > 0) { satuanHtml += SATUAN_OPTIONS.map(opt => `<option value="${opt}">${opt}</option>`).join(''); } 
             else { satuanHtml += `<option value="Pcs">Pcs</option>`; }
 
-            // Opsi Kategori Dinamis
             let kategoriHtml = `<option value="">Pilih...</option>`;
             if (KATEGORI_OPTIONS.length > 0) { kategoriHtml += KATEGORI_OPTIONS.map(opt => `<option value="${opt}">${opt}</option>`).join(''); } 
             else { kategoriHtml += `<option value="Lainnya">Lainnya</option>`; }
@@ -641,14 +631,8 @@
                     <div class="col-6"><label style="font-size:0.6rem;">Jumlah</label><input type="number" id="aiJml_${idx}" class="form-control form-control-sm" value="${safeJumlah}"></div>
                 </div>
                 <div class="row g-2">
-                    <div class="col-6">
-                        <label style="font-size:0.6rem;">Satuan</label>
-                        <select id="aiSat_${idx}" class="form-select form-select-sm">${satuanHtml}</select>
-                    </div>
-                    <div class="col-6">
-                        <label style="font-size:0.6rem;">Kategori</label>
-                        <select id="aiKat_${idx}" class="form-select form-select-sm">${kategoriHtml}</select>
-                    </div>
+                    <div class="col-6"><label style="font-size:0.6rem;">Satuan</label><select id="aiSat_${idx}" class="form-select form-select-sm">${satuanHtml}</select></div>
+                    <div class="col-6"><label style="font-size:0.6rem;">Kategori</label><select id="aiKat_${idx}" class="form-select form-select-sm">${kategoriHtml}</select></div>
                 </div>
             </div>`;
         });
