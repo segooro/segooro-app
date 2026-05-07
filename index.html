@@ -397,6 +397,41 @@
     const db = firebase.firestore();
 
     // ==========================================
+    // FUNGSI PUSH NOTIFICATION NATIVE (ANDROID)
+    // ==========================================
+    function requestNotificationPermission() {
+        if (!("Notification" in window)) {
+            console.log("Browser tidak mendukung notifikasi web.");
+        } else if (Notification.permission !== "denied" && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+    }
+
+    function sendAppNotification(title, body) {
+        if ("Notification" in window && Notification.permission === "granted") {
+            // Mencoba via Service Worker agar lebih native di Android (bisa ada getaran & badge)
+            if (navigator.serviceWorker) {
+                navigator.serviceWorker.ready.then(function(registration) {
+                    registration.showNotification(title, {
+                        body: body,
+                        icon: 'https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png',
+                        vibrate: [200, 100, 200, 100, 200],
+                        tag: 'segooro-notif'
+                    });
+                }).catch(function() {
+                    // Fallback jika belum pasang sw.js
+                    new Notification(title, { body: body, icon: 'https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png' });
+                });
+            } else {
+                new Notification(title, { body: body, icon: 'https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png' });
+            }
+        }
+    }
+
+    // Panggil fungsi minta izin segera setelah PWA dimuat
+    window.addEventListener('load', requestNotificationPermission);
+
+    // ==========================================
     // GLOBAL STATE & VARIABLES (JANGAN DIHAPUS)
     // ==========================================
     let now = new Date();
@@ -572,9 +607,6 @@
         document.getElementById('historyDateEnd').value = today;
     }
 
-    // ==========================================
-    // 3. FITUR KEUANGAN
-    // ==========================================
     async function simpanPenjualan() {
         const tgl = document.getElementById('keuTglPenjualan').value;
         const vTunai = parseFloat(document.getElementById('keuTunai').value) || 0;
@@ -597,12 +629,18 @@
                 total_penjualan: totalBersih, last_updated: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
-            Swal.fire('Berhasil!', 'Data Penjualan tersimpan di Firebase.', 'success');
+            // --- EKSEKUSI PUSH NOTIFIKASI NATIVE ---
+            let msgBody = `Tunai: Rp ${vTunai.toLocaleString('id-ID')}\nQRIS: Rp ${vQris.toLocaleString('id-ID')}\nShopee: Rp ${vShopee.toLocaleString('id-ID')}\nGrab: Rp ${vGrab.toLocaleString('id-ID')}\n---\nTotal Bersih: Rp ${totalBersih.toLocaleString('id-ID')}`;
+            sendAppNotification("💰 Laporan Penjualan Masuk!", msgBody);
+            // ---------------------------------------
+
+            Swal.fire('Berhasil!', 'Pesan pengingat berhasil terkirim!', 'success');
+            
             document.getElementById('keuTunai').value = ""; document.getElementById('keuQris').value = "";
             document.getElementById('keuShopee').value = ""; document.getElementById('keuGrab').value = "";
         } catch (err) { Swal.fire('Error', err.message, 'error'); }
     }
-
+    
     async function simpanPengeluaran() {
         const tgl = document.getElementById('keuTglKeluar').value;
         const item = document.getElementById('keuItem').value;
@@ -1361,15 +1399,33 @@
         let hasError = false; let missing = [];
         currentStockData.forEach((item, index) => { const row = document.getElementById(`stockRow-${index}`); row.classList.remove('error-highlight'); if (item.akhir === "") { hasError = true; missing.push(item.nama); row.classList.add('error-highlight'); } });
         if (hasError) return Swal.fire({ icon: 'error', title: 'Belum Lengkap!', html: `Isi stok akhir fisik:<br><span class="text-danger small">${missing.slice(0,3).join(', ')}${missing.length>3?'...':''}</span>` });
+        
         Swal.fire({ title: 'Finalisasi...', text:'Tutup buku laporan hari ini?', icon:'question', showCancelButton:true, confirmButtonText:'Ya, Tutup' }).then(async (res) => {
             if(res.isConfirmed) {
                 Swal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                try { await db.collection('laporan_stok').doc(document.getElementById('stockDate').value).update({ status: "Tutup Buku", last_updated: firebase.firestore.FieldValue.serverTimestamp() }); Swal.fire({ icon: 'success', title: 'Selesai!', text: 'Laporan hari ini ditutup buku.' }); loadStockItems(); } 
+                try { 
+                    await db.collection('laporan_stok').doc(document.getElementById('stockDate').value).update({ status: "Tutup Buku", last_updated: firebase.firestore.FieldValue.serverTimestamp() }); 
+                    
+                    // --- EKSEKUSI PUSH NOTIFIKASI BARANG HABIS ---
+                    let itemsToRestock = [];
+                    currentStockData.forEach(item => {
+                        let liveStock = item.akhir !== "" ? item.akhir : ((parseFloat(item.awal) || 0) + (parseFloat(item.masuk) || 0) - (parseFloat(item.terbuang) || 0));
+                        if (liveStock <= 0) { itemsToRestock.push(item.nama); }
+                    });
+
+                    if (itemsToRestock.length > 0) {
+                        let msgBody = `Daftar bahan:\n- ${itemsToRestock.join('\n- ')}`;
+                        sendAppNotification("🚨 Segera Restok Bahan!", msgBody);
+                    }
+                    // ---------------------------------------------
+
+                    Swal.fire({ icon: 'success', title: 'Selesai!', text: 'Pesan pengingat berhasil terkirim!' }); 
+                    loadStockItems(); 
+                } 
                 catch (err) { Swal.fire('Error', err.message, 'error'); }
             }
         });
     }
-
     // Render Stock List UI (Tetap Utuh)
     function renderStockList() {
         const listContainer = document.getElementById('stockList'); listContainer.innerHTML = '';
