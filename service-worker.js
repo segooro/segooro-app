@@ -45,3 +45,27 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
+// ==========================================
+// TAMBAHAN: FUNGSI KLIK NOTIFIKASI PWA
+// ==========================================
+self.addEventListener('notificationclick', function(event) {
+    event.notification.close(); // Tutup notif di layar atas setelah diklik
+
+    // Buka atau fokuskan kembali tab PWA Segoo.Ro yang sedang berjalan
+    event.waitUntil(
+        clients.matchAll({ type: 'window' }).then(windowClients => {
+            // Cek jika PWA sudah terbuka tapi di-minimize, maka panggil ke depan (focus)
+            for (var i = 0; i < windowClients.length; i++) {
+                var client = windowClients[i];
+                if (client.url.indexOf('/') !== -1 && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            // Jika benar-benar tertutup, buka jendela baru
+            if (clients.openWindow) {
+                return clients.openWindow('/');
+            }
+        })
+    );
+});
