@@ -400,7 +400,6 @@
     // FUNGSI PUSH NOTIFICATION NATIVE (ANDROID)
     // ==========================================
     
-    // 1. Daftarkan Service Worker (SYARAT WAJIB ANDROID)
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
             navigator.serviceWorker.register('./service-worker.js').then(function(registration) {
@@ -411,7 +410,6 @@
         });
     }
 
-    // 2. Minta Izin Notifikasi
     function requestNotificationPermission() {
         if (!("Notification" in window)) {
             console.log("Browser tidak mendukung notifikasi.");
@@ -421,12 +419,10 @@
     }
     window.addEventListener('load', requestNotificationPermission);
 
-    // 3. Eksekusi Notifikasi
     function sendAppNotification(title, body) {
         if ("Notification" in window && Notification.permission === "granted") {
             navigator.serviceWorker.getRegistration().then(function(reg) {
                 if (reg) {
-                    // Gunakan Service Worker agar memicu getaran dan muncul di bar atas Android
                     reg.showNotification(title, {
                         body: body,
                         icon: 'https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png',
@@ -435,7 +431,6 @@
                         requireInteraction: true
                     });
                 } else {
-                    // Fallback darurat
                     new Notification(title, { body: body, icon: 'https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png' });
                 }
             });
@@ -474,11 +469,9 @@
               });
           });
     }
-    // Panggil fungsi minta izin segera setelah PWA dimuat
-    window.addEventListener('load', requestNotificationPermission);
 
     // ==========================================
-    // GLOBAL STATE & VARIABLES (JANGAN DIHAPUS)
+    // GLOBAL STATE & VARIABLES
     // ==========================================
     let now = new Date();
     let adminFilter = { 
@@ -495,52 +488,13 @@
     let currentPayrollData = null; 
     const TARIF_GAJI_PER_JAM = 10000; 
     
-    // Variabel Opsi Dropdown (Firebase)
     let KATEGORI_OPTIONS = [];
     let SATUAN_OPTIONS = [];
     
-    // State Riwayat Pengeluaran (Baru)
-    let rawHistoryData = []; // Data mentah dari DB untuk tanggal tsb
-    let filteredHistoryData = []; // Data setelah di-search
+    let rawHistoryData = []; 
+    let filteredHistoryData = []; 
     let historyCurrentPage = 1;
     const itemsPerPage = 10;
-
-    // ==========================================
-    // SISTEM NOTIFIKASI REAL-TIME (PEGAWAI -> OWNER)
-    // ==========================================
-    // Fungsi Pegawai: Menembak data notif ke Firebase
-    async function triggerRemoteNotification(title, body) {
-        try {
-            await db.collection('notifikasi').add({
-                title: title,
-                body: body,
-                createdAt: Date.now() // Catat waktu persis saat dikirim
-            });
-        } catch (e) { console.error("Gagal menembak notif:", e); }
-    }
-
-    // Fungsi Owner: Mendengarkan database secara live
-    let isListeningNotif = false;
-    function startOwnerNotifListener() {
-        if (isListeningNotif) return;
-        isListeningNotif = true;
-        
-        // Catat waktu owner login. Kita hanya peduli notif BARU setelah owner buka app.
-        const loginTime = Date.now(); 
-        
-        db.collection('notifikasi').where('createdAt', '>=', loginTime)
-          .onSnapshot(snapshot => {
-              snapshot.docChanges().forEach(change => {
-                  if (change.type === 'added') {
-                      const data = change.doc.data();
-                      // Jika waktunya lebih besar dari waktu login, bunyikan alarm!
-                      if (data.createdAt > loginTime) {
-                          sendAppNotification(data.title, data.body);
-                      }
-                  }
-              });
-          });
-    }
 
     // ==========================================
     // LOGIKA MULTI-SPREADSHEET (ROUTER API)
@@ -572,7 +526,6 @@
         }
     }
 
-    // FUNGSI TARIK DROPDOWN DARI FIREBASE (Tetap Ada)
     async function loadKeuanganDropdowns() {
         try {
             const docRef = await db.collection('pengaturan').doc('opsi_keuangan').get();
@@ -645,9 +598,8 @@
             document.getElementById('btnTabPengeluaran').style.background = "#eef2fa";
             document.getElementById('tabPengeluaran').style.display = "block";
             
-            // Saat buka tab pengeluaran, load riwayat (jika di sub-tab manual)
             if(document.getElementById('secManual').style.display !== 'none') {
-                loadExpenseHistory();
+                loadExpenseHistory(true);
             }
         } 
         else if (tabName === 'rekap') {
@@ -665,7 +617,7 @@
             btnMan.className = "btn flex-fill fw-bold text-primary border shadow-sm"; btnMan.style.background = "#eef2fa";
             btnAi.className = "btn flex-fill fw-bold text-muted border shadow-sm"; btnAi.style.background = "white";
             secMan.style.display = "block"; secAi.style.display = "none";
-            loadExpenseHistory(); // Load riwayat saat pindah ke manual (Baru)
+            loadExpenseHistory(true); 
         } else {
             btnAi.className = "btn flex-fill fw-bold text-primary border shadow-sm"; btnAi.style.background = "#eef2fa";
             btnMan.className = "btn flex-fill fw-bold text-muted border shadow-sm"; btnMan.style.background = "white";
@@ -685,7 +637,6 @@
         document.getElementById('rekapStart').value = firstDayStr;
         document.getElementById('rekapEnd').value = today;
 
-        // Set default filter riwayat dari tgl 1 s/d hari ini
         document.getElementById('historyDateStart').value = firstDayStr; 
         document.getElementById('historyDateEnd').value = today;
     }
@@ -712,11 +663,8 @@
                 total_penjualan: totalBersih, last_updated: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
-            // --- MENEMBAK NOTIF KE HP OWNER ---
             let msgBody = `Tunai: Rp ${vTunai.toLocaleString('id-ID')}\nQRIS: Rp ${vQris.toLocaleString('id-ID')}\nShopee: Rp ${vShopee.toLocaleString('id-ID')}\nGrab: Rp ${vGrab.toLocaleString('id-ID')}\n---\nTotal Bersih: Rp ${totalBersih.toLocaleString('id-ID')}`;
             triggerRemoteNotification("💰 Laporan Penjualan Masuk!", msgBody);
-            // ---------------------------------------
-            // ---------------------------------------
 
             Swal.fire('Berhasil!', 'Pesan pengingat berhasil terkirim!', 'success');
             
@@ -724,7 +672,7 @@
             document.getElementById('keuShopee').value = ""; document.getElementById('keuGrab').value = "";
         } catch (err) { Swal.fire('Error', err.message, 'error'); }
     }
-    
+
     async function simpanPengeluaran() {
         const tgl = document.getElementById('keuTglKeluar').value;
         const item = document.getElementById('keuItem').value;
@@ -746,7 +694,6 @@
             
             document.getElementById('keuItem').value = ""; document.getElementById('keuJumlah').value = ""; document.getElementById('keuHarga').value = "";
             
-            // Reload riwayat jika tgl masuk range
             const startTgl = document.getElementById('historyDateStart').value;
             const endTgl = document.getElementById('historyDateEnd').value;
             if(tgl >= startTgl && tgl <= endTgl) {
@@ -756,7 +703,6 @@
     }
 
     // --- LOGIKA RIWAYAT & EDIT PENGELUARAN (FULL BARU) ---
-    
     async function loadExpenseHistory(resetPage = true) {
         const startTgl = document.getElementById('historyDateStart').value;
         const endTgl = document.getElementById('historyDateEnd').value;
@@ -769,13 +715,12 @@
 
         if(resetPage) historyCurrentPage = 1;
         
-        listCont.innerHTML = '<div class="text-center text-muted py-3 small"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Memuat...</div>';
+        listCont.innerHTML = '<div class="text-center text-muted py-3 small"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Memuat riwayat...</div>';
         pagCont.innerHTML = "";
         countLbl.innerText = "0 Item";
 
         try {
             if(resetPage) {
-                // Tarik banyak tanggal sekaligus menggunakan Range
                 const snapshot = await db.collection('laporan_keuangan')
                     .where('tanggal', '>=', startTgl)
                     .where('tanggal', '<=', endTgl)
@@ -786,14 +731,12 @@
                     const data = doc.data();
                     if(data.pengeluaran_list && data.pengeluaran_list.length > 0) {
                         data.pengeluaran_list.forEach(expItem => {
-                            // Selipkan tanggal doc ke objek agar bisa di-edit
                             expItem.docTanggal = data.tanggal; 
                             rawHistoryData.push(expItem);
                         });
                     }
                 });
 
-                // Urutkan dari terbaru
                 rawHistoryData.sort((a,b) => {
                     let timeA = a.id.split('_')[1] || 0;
                     let timeB = b.id.split('_')[1] || 0;
@@ -818,7 +761,7 @@
             listCont.innerHTML = `<div class="text-center text-danger py-3 small">Gagal memuat: ${err.message}</div>`;
         }
     }
-    // 2. Render halaman aktif ke UI (Mirip Foto 2)
+
     function renderHistoryPage() {
         const listCont = document.getElementById('expenseHistoryList');
         listCont.innerHTML = "";
@@ -865,20 +808,17 @@
         renderHistoryPagination(filteredHistoryData.length);
     }
 
-    // 3. Render Tombol Paginasi
     function renderHistoryPagination(totalItems) {
         const pagCont = document.getElementById('historyPagination');
         pagCont.innerHTML = "";
 
         const totalPages = Math.ceil(totalItems / itemsPerPage);
-        if(totalPages <= 1) return; // Tidak butuh paginasi jika hanya 1 halaman
+        if(totalPages <= 1) return; 
 
         let html = "";
         
-        // Tombol Prev
         html += `<button class="page-btn" ${historyCurrentPage === 1 ? 'disabled' : ''} onclick="changeHistoryPage(${historyCurrentPage - 1})"><i class="bi bi-chevron-left"></i></button>`;
 
-        // Logika angka halaman (sederhana: tampilkan semua jika dikit, atau batasi)
         const maxVisible = 3;
         let startPage = Math.max(1, historyCurrentPage - 1);
         let endPage = Math.min(totalPages, startPage + maxVisible - 1);
@@ -891,26 +831,21 @@
             html += `<button class="page-btn ${i === historyCurrentPage ? 'active' : ''}" onclick="changeHistoryPage(${i})">${i}</button>`;
         }
 
-        // Tombol Next
         html += `<button class="page-btn" ${historyCurrentPage === totalPages ? 'disabled' : ''} onclick="changeHistoryPage(${historyCurrentPage + 1})"><i class="bi bi-chevron-right"></i></button>`;
 
         pagCont.innerHTML = html;
     }
 
-    // 4. Fungsi Ganti Halaman
     function changeHistoryPage(newPage) {
         historyCurrentPage = newPage;
         renderHistoryPage();
-        // Scroll ke atas area list agar kelihatan perubahannya
-        document.getElementById('expenseHistoryList').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+        document.getElementById('expenseHistoryBlock').scrollIntoView({behavior: 'smooth', block: 'nearest'});
     }
 
-    // 5. Buka Modal Edit Pengeluaran (SweetAlert2)
     async function openEditExpenseModal(expId) {
         const expData = rawHistoryData.find(item => item.id === expId);
         if(!expData) return Swal.fire('Error', 'Data tidak ditemukan.', 'error');
         
-        // Tarik tanggal dari properti objek yang diselipkan saat load
         const tglAktif = expData.docTanggal;
 
         const katOptionsHtml = KATEGORI_OPTIONS.map(k => `<option value="${k}" ${k === expData.kategori ? 'selected' : ''}>${k}</option>`).join('');
@@ -959,7 +894,6 @@
                     return false;
                 }
                 
-                // Jangan lupa hapus 'docTanggal' karena tidak boleh disimpan di Firestore
                 let cleanExpData = { ...expData };
                 delete cleanExpData.docTanggal;
 
@@ -967,42 +901,35 @@
             }
         }).then(async (result) => {
             if (result.isConfirmed) {
-                // panggil fungsi performUpdateExpense (tidak ada yg diubah dari fungsi performUpdateExpense)
                 performUpdateExpense(tglAktif, result.value.oldData, result.value.updatedData);
             }
         });
     }
 
-    // 6. Eksekusi Update ke Firestore (Hapus lama, ArrayUnion baru)
     async function performUpdateExpense(dateISO, oldData, newData) {
         Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
         try {
             const docRef = db.collection('laporan_keuangan').doc(dateISO);
             
-            // Data baru mempertahankan ID lama
             const updatedItem = { ...oldData, ...newData };
 
-            // Karena Firestore tidak punya arrayUpdateById, pakai trik Hapus objek lama -> Tambah objek baru dalam 1 batch
             const batch = db.batch();
             
-            // 1. Hapus item object lama tepat seperti aslinya
             batch.update(docRef, {
                 pengeluaran_list: firebase.firestore.FieldValue.arrayRemove(oldData)
             });
             
-            // 2. Tambah item object baru
             batch.update(docRef, {
                 pengeluaran_list: firebase.firestore.FieldValue.arrayUnion(updatedItem),
-                last_updated: firebase.firestore.FieldValue.serverTimestamp() // Update waktu edit
+                last_updated: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             await batch.commit();
 
             Swal.fire({ icon: 'success', title: 'Berhasil dikoreksi!', timer: 1500, showConfirmButton: false });
             
-            // Reload data history lokal (client-side) tanpa tarik ulang DB, agar form tetap di tanggal tsb
-            loadExpenseHistory(true); // resetPage=true untuk refresh list lokal di tanggal tsb
+            loadExpenseHistory(true); 
 
         } catch (err) {
             console.error(err);
@@ -1010,9 +937,6 @@
         }
     }
 
-    // --- SELESAI LOGIKA BARU ---
-
-    // Fungsi-fungsi AI Scan (Tetap Utuh)
     function previewStruk(event) {
         const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
@@ -1054,7 +978,6 @@
     function renderAiItemsForm(items) {
         tempAiItems = items; const listDiv = document.getElementById('aiItemList'); listDiv.innerHTML = "";
         
-        // Buat HTML Opsi Dropdown untuk form AI
         let katOptionsHtml = KATEGORI_OPTIONS.map(k => `<option value="${k}">${k}</option>`).join('');
         let satOptionsHtml = SATUAN_OPTIONS.map(s => `<option value="${s}">${s}</option>`).join('');
 
@@ -1084,14 +1007,13 @@
 
         try {
             const docRef = db.collection('laporan_keuangan').doc(tgl);
-            // Ambil data rekap yang sudah ada (untuk merge penjualan jika ada)
             const docSnap = await docRef.get();
             
             let listToSave = [];
             for(let i=0; i<tempAiItems.length; i++) {
                 if(document.getElementById(`aiRow_${i}`)) {
                     listToSave.push({
-                        id: 'ai_' + Date.now().toString() + i, // Beri ID unik juga
+                        id: 'ai_' + Date.now().toString() + i,
                         item: document.getElementById(`aiItem_${i}`).value.trim(),
                         harga: parseFloat(document.getElementById(`aiHarga_${i}`).value) || 0, 
                         jumlah: parseFloat(document.getElementById(`aiJml_${i}`).value) || 1,
@@ -1101,15 +1023,12 @@
                 }
             }
             
-            // Gunakan batch untuk atomicity (opsional tapi disarankan)
             const batch = db.batch();
             
-            // Pastikan dokumen ada dulu sebelum arrayUnion jika belum pernah ada data di tgl itu
             if(!docSnap.exists) {
                 batch.set(docRef, { tanggal: tgl, pengeluaran_list: [], total_penjualan: 0 });
             }
 
-            // Tambahkan semua item sekaligus pakai FieldValue.arrayUnion(...array)
             batch.update(docRef, { 
                 pengeluaran_list: firebase.firestore.FieldValue.arrayUnion(...listToSave), 
                 last_updated: firebase.firestore.FieldValue.serverTimestamp() 
@@ -1123,7 +1042,6 @@
         } catch(err) { Swal.fire('Error', err.message, 'error'); }
     }
 
-    // Fungsi Rekap Keuangan (Tetap Utuh)
     async function loadRekapKeuangan() {
         const start = document.getElementById('rekapStart').value; const end = document.getElementById('rekapEnd').value;
         const tbody = document.getElementById('rekapTableBody');
@@ -1158,9 +1076,6 @@
         } catch(err) { tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`; }
     }
 
-    // ==========================================
-    // 4. FITUR KALKULATOR & BELANJA (FIRESTORE) (Tetap Utuh)
-    // ==========================================
     function formatRecipeName(key) {
         const names = { 's_bawang': 'Sambal Bawang', 's_ijo': 'Sambal Ijo', 's_terasi': 'Sambal Terasi', 'ungkep': 'Ayam Ungkep', 'daging_koyor': 'Daging Koyor', 'iga': 'Iga' };
         return names[key] || key;
@@ -1245,7 +1160,6 @@
         
         let tableHtml = `<div class="d-flex justify-content-between align-items-center mb-2 px-2"><h6 class="fw-bold mb-0 small text-primary">Daftar Belanja Gabungan</h6><button class="btn btn-sm btn-outline-primary" style="font-size:0.65rem; border-radius:8px;" onclick="downloadBelanjaPDF()"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button></div><div class="table-container shadow-sm bg-white animate__animated animate__fadeIn" id="belanjaTablePDF"><table class="table table-sm table-borderless align-middle mb-0"><thead style="border-bottom: 2px solid #f1f2f6;"><tr><th>NAMA BAHAN</th><th class="text-end">TOTAL KEBUTUHAN</th></tr></thead><tbody>`;
         
-        // Urutkan alfabetis
         const sortedItems = Object.values(aggList).sort((a,b) => a.nama.localeCompare(b.nama));
         
         sortedItems.forEach(item => {
@@ -1255,7 +1169,6 @@
         container.innerHTML = tableHtml + `</tbody></table><div class="text-center text-muted mt-2" style="font-size:0.6rem;">Generasi: ${new Date().toLocaleString('id-ID')}</div></div>`;
     }
 
-    // Fungsi PDF Belanja (Tetap Utuh)
     function downloadBelanjaPDF() {
         const element = document.getElementById('belanjaTablePDF');
         if(!element) return;
@@ -1264,9 +1177,6 @@
         html2pdf().set(opt).from(element).save().then(() => Swal.close());
     }
 
-    // ==========================================
-    // 5. LOGIN, PRESENSI, GAJI & STOK (Tetap Utuh)
-    // ==========================================
     async function syncToFirebase(dateStr) {
         await db.collection('laporan_stok').doc(dateStr).update({
             last_updated: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1274,7 +1184,6 @@
         });
     }
 
-    // Fungsi Gaji & Presensi Admin (Tetap Utuh)
     async function loadPresensiGaji() {
         const isOwner = document.querySelector('.owner-only').style.display !== 'none'; if (!isOwner) return; 
         const content = document.getElementById('presensiGajiContent');
@@ -1286,7 +1195,6 @@
 
             let grouped = {}; let employeeSet = new Set();
             rawData.forEach(item => {
-                // BARIS AJAIB: Otomatis ubah semua variasi nama jadi HURUF BESAR agar tidak dobel!
                 let namaKapital = (item.nama || "").toUpperCase(); 
                 
                 employeeSet.add(namaKapital); 
@@ -1333,7 +1241,6 @@
         html += `</tbody></table></div>`; content.innerHTML = html;
     }
 
-    // Slip Gaji PDF (Tetap Utuh)
     function generateSlipGaji(nama) {
         if (!currentPayrollData) return; const summary = currentPayrollData.payrollSummary.find(s => s.nama === nama); if (!summary) return;
         const logs = currentPayrollData.recentLogs.filter(l => l.nama === nama).sort((a, b) => new Date(a.tanggalISO) - new Date(b.tanggalISO));
@@ -1353,7 +1260,7 @@
                 <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Tarif per Jam:</span><span style="font-weight: 700;">Rp ${TARIF_GAJI_PER_JAM.toLocaleString('id-ID')}</span></div>
                 <div style="display: flex; justify-content: space-between; align-items: center; background: #F4F7FF; padding: 10px; border-radius: 8px;"><span style="font-weight: 800; color: #1D407A;">GAJI BERSIH (TAKE HOME PAY)</span><span style="font-weight: 900; font-size: 16px; color: #2ecc71;">Rp ${Number(summary.totalGaji).toLocaleString('id-ID')}</span></div>
             </div>
-            <div style="text-align: center; margin-top: 25px; font-size: 8px; color: #b2bec3;"><p style="margin:0;">Dicetak otomatis oleh Sistem Segoo.Ro App pada ${new Date().toLocaleString('id-ID')}</p></div>
+            <div style="text-align: center; margin-top: 25px; font-size: 8px; color: #b2bec3;"><p style="margin:0;">PDF berhasil terbuat!</p></div>
         `;
 
         Swal.fire({ title: 'Menjana PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -1361,7 +1268,6 @@
         html2pdf().set(opt).from(slipContainer).save().then(() => Swal.close());
     }
 
-    // Edit Log Absen Admin (Tetap Utuh)
     function editLog(comboId, masuk, pulang) {
         let [idMasuk, idPulang, tglISO, namaPegawai] = comboId.split('|');
         Swal.fire({
@@ -1388,7 +1294,6 @@
         });
     }
 
-    // Sync Lama (Sheets -> Firestore) (Tetap Utuh)
     async function syncLogStok() {
         const dateStr = document.getElementById('adminStockDate').value;
         Swal.fire({ title: 'Sinkronisasi Stok...', text: `Menarik data stok ${dateStr} dari Sheets`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -1417,7 +1322,6 @@
         } catch (err) { Swal.fire('Gagal Sync', err.message, 'error'); }
     }
 
-    // Fungsi Karyawan: Absen (Tetap Utuh)
     function handleAbsen() {
         const user = firebase.auth().currentUser;
         if (!user) return Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Silakan login ulang.' });
@@ -1432,10 +1336,6 @@
                 const tanggalStr = nowLocal.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'}); 
                 const waktuStr = nowLocal.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}); 
                 const isoDate = nowLocal.toISOString().split('T')[0]; 
-                
-                // Cek radius (Hanya contoh, ganti koordinat outlet asli jika perlu)
-                // const outletLat = -6.xxx; const outletLng = 110.xxx; const radiusKM = 0.1; // 100m
-                // if(getDistanceFromLatLonInKm(pos.coords.latitude, pos.coords.longitude, outletLat, outletLng) > radiusKM) throw new Error("Kamu diluar radius outlet.");
 
                 await db.collection('presensi').add({ nama: name, email: user.email, tipe: type, tanggal: tanggalStr, tanggalISO: isoDate, waktu: waktuStr, timestamp: firebase.firestore.FieldValue.serverTimestamp(), lat: pos.coords.latitude, lng: pos.coords.longitude });
                 btn.disabled = false; btn.innerHTML = "Absen Sekarang"; Swal.fire({ icon: 'success', title: 'Berhasil!', text: `Presensi ${type} tercatat pukul ${waktuStr}.`});
@@ -1443,7 +1343,6 @@
         }, (err) => { btn.disabled = false; btn.innerHTML = "Absen Sekarang"; Swal.fire({ icon: 'info', title: 'GPS Mati', text: 'Aktifkan GPS HP dan izinkan lokasi untuk absen.'}); }, { enableHighAccuracy: true });
     }
 
-    // Fungsi Karyawan: Input Stok (Tetap Utuh)
     async function loadStockItems() {
         const listContainer = document.getElementById('stockList');
         listContainer.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary spinners-border-sm me-2"></div>Memuat log harian...</div>';
@@ -1464,7 +1363,6 @@
         } catch (err) { listContainer.innerHTML = `<div class="alert alert-danger m-3 text-center small">${err.message}</div>`; }
     }
 
-    // Input Stok Interaksi (Tetap Utuh)
     async function submitIncrement(index, type) {
         const inputElem = document.getElementById(`inp-${type}-${index}`); const val = parseFloat(inputElem.value);
         if (isNaN(val) || val <= 0) return Swal.fire({ toast: true, position: 'top', icon: 'warning', title: 'Isi angka!', timer: 1500, showConfirmButton: false });
@@ -1490,7 +1388,6 @@
                 try { 
                     await db.collection('laporan_stok').doc(document.getElementById('stockDate').value).update({ status: "Tutup Buku", last_updated: firebase.firestore.FieldValue.serverTimestamp() }); 
                     
-                    // --- EKSEKUSI PUSH NOTIFIKASI BARANG HABIS ---
                     let itemsToRestock = [];
                     currentStockData.forEach(item => {
                         let liveStock = item.akhir !== "" ? item.akhir : ((parseFloat(item.awal) || 0) + (parseFloat(item.masuk) || 0) - (parseFloat(item.terbuang) || 0));
@@ -1501,16 +1398,15 @@
                         let msgBody = `Daftar bahan:\n- ${itemsToRestock.join('\n- ')}`;
                         triggerRemoteNotification("🚨 Segera Restok Bahan!", msgBody);
                     }
-                    // ---------------------------------------------
 
-                    Swal.fire({ icon: 'success', title: 'Selesai!', text: 'Pesan pengingat berhasil terkirim!' }); 
+                    Swal.fire({ icon: 'success', title: 'Selesai!', text: 'Laporan hari ini ditutup buku. Pesan pengingat berhasil terkirim!' }); 
                     loadStockItems(); 
                 } 
                 catch (err) { Swal.fire('Error', err.message, 'error'); }
             }
         });
     }
-    // Render Stock List UI (Tetap Utuh)
+
     function renderStockList() {
         const listContainer = document.getElementById('stockList'); listContainer.innerHTML = '';
         if (currentStockData.length === 0) return listContainer.innerHTML = '<p class="text-center text-muted">Belum ada data barang.</p>';
@@ -1529,7 +1425,6 @@
 
     function toggleInputCat(id) { const container = document.getElementById(id); const icon = document.getElementById('icon-' + id); if (container.style.display === 'none') { container.style.display = 'block'; icon.style.transform = 'rotate(0deg)'; } else { container.style.display = 'none'; icon.style.transform = 'rotate(-90deg)'; } }
 
-    // Admin: Pantau Stok Live (Tetap Utuh)
     async function loadPemantau() {
         const content = document.getElementById('pemantauContent'); content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary spinners-border-sm me-2"></div>Menyadap CCTV Firestore...</div>';
         try {
@@ -1573,7 +1468,7 @@
     window.toggleCatLive = function(id) { const container = document.getElementById(id); const icon = document.getElementById('icon-' + id); if (container.style.display === 'none') { container.style.display = 'grid'; icon.style.transform = 'rotate(0deg)'; } else { container.style.display = 'none'; icon.style.transform = 'rotate(-90deg)'; } };
 
     // ==========================================
-    // LOGIKA CORE PWA (AUTH & LOGIN) (Tetap Utuh)
+    // LOGIKA CORE PWA (AUTH & LOGIN)
     // ==========================================
     firebase.auth().onAuthStateChanged(async (user) => {
         const navBottom = document.querySelector('.bottom-nav');
@@ -1589,13 +1484,12 @@
 
                 if (role === 'owner') {
                     document.querySelectorAll('.owner-only').forEach(m => m.style.display = 'flex'); document.querySelectorAll('.pegawai-only').forEach(m => m.style.display = 'none'); 
-                    switchPage('pagePemantau'); // Owner default ke pantau stok
-                    // NYALAKAN RADAR NOTIFIKASI KHUSUS OWNER
-                    startOwnerNotifListener();
+                    switchPage('pagePemantau'); 
+                    startOwnerNotifListener(); 
                 } else {
                     document.querySelectorAll('.owner-only').forEach(m => m.style.display = 'none'); document.querySelectorAll('.pegawai-only').forEach(m => m.style.display = 'flex'); 
                     document.getElementById('userDisplayPresensi').innerHTML = `Halo, <b class="text-primary">${namaAsli}</b>`;
-                    switchPage('pagePresensi'); // Pegawai default ke presensi
+                    switchPage('pagePresensi'); 
                 }
                 navBottom.style.display = 'flex'; Swal.close();
             } catch (err) { Swal.fire({ icon: 'error', title: 'Akses Ditolak', html: err.message }).then(() => { firebase.auth().signOut(); }); }
@@ -1612,7 +1506,6 @@
         firebase.auth().signInWithEmailAndPassword(email, pass).catch(err => Swal.fire('Gagal Masuk', 'Email atau sandi salah.', 'error'));
     }
 
-    // Fungsi Hitung Jam & Gaji (Tetap Utuh)
     function calculateHours(timeIn, timeOut) { if (!timeIn || !timeOut || timeIn === '..' || timeOut === '..') return 0; let [inH, inM] = timeIn.split(':').map(Number); let [outH, outM] = timeOut.split(':').map(Number); let dIn = new Date(2000, 0, 1, inH, inM); let dOut = new Date(2000, 0, 1, outH, outM); if (dOut < dIn) dOut.setDate(dOut.getDate() + 1); return Math.round(((dOut - dIn) / (1000 * 60 * 60)) * 10) / 10; }
 
     function handleRegister() { Swal.fire({ title: 'Daftar Akun Baru', html: `<input id="regNama" type="text" class="swal2-input" placeholder="Nama Lengkap Karyawan" style="width: 85%; margin: 10px auto;"><input id="regEmail" type="email" class="swal2-input" placeholder="Email aktif" style="width: 85%; margin: 10px auto;"><input id="regPass" type="password" class="swal2-input" placeholder="Kata sandi (min 6 karakter)" style="width: 85%; margin: 10px auto;">`, confirmButtonText: 'Daftar', showCancelButton: true, confirmButtonColor: '#1D407A', preConfirm: () => { return { nama: document.getElementById('regNama').value.trim(), email: document.getElementById('regEmail').value.trim(), pass: document.getElementById('regPass').value }; } }).then((res) => { if (res.isConfirmed) { if (!res.value.nama || !res.value.email || res.value.pass.length < 6) return Swal.fire('Gagal', 'Lengkapi data, sandi min 6 karakter.', 'error'); Swal.fire({ title: 'Mendaftarkan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); firebase.auth().createUserWithEmailAndPassword(res.value.email, res.value.pass).then(async (cred) => { await db.collection('users').doc(res.value.email).set({ nama: res.value.nama.toUpperCase(), role: 'pegawai', createdAt: firebase.firestore.FieldValue.serverTimestamp() }); Swal.fire('Berhasil!', 'Akun terdaftar sebagai Pegawai. Silakan Login.', 'success'); }).catch(error => Swal.fire('Gagal', error.message, 'error')); } }); }
@@ -1621,9 +1514,6 @@
 
     function handleLogout() { Swal.fire({ title: 'Keluar Aplikasi?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#e74c3c', confirmButtonText: 'Ya, Keluar' }).then((result) => { if (result.isConfirmed) firebase.auth().signOut(); }); }
 
-    // ==========================================
-    // SINKRONISASI SEDOT TOTAL (SHEETS -> FIRESTORE) (Tetap Utuh)
-    // ==========================================
     async function syncLogKeuangan() {
         Swal.fire({ title: 'Menyedot Semua Data...', html: 'Menarik Kategori, Satuan, Penjualan, & Pengeluaran sejarah Google Sheets.<br><b>Proses ini agak lama, jangan tutup PWA.</b>', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
@@ -1632,15 +1522,12 @@
 
             await db.collection('pengaturan').doc('opsi_keuangan').set({ kategori: resData.kategori || [], satuan: resData.satuan || [] });
             
-            KATEGORI_OPTIONS = resData.kategori || []; SATUAN_OPTIONS = resData.satuan || []; // Update local options
+            KATEGORI_OPTIONS = resData.kategori || []; SATUAN_OPTIONS = resData.satuan || []; 
 
             let groupedData = {};
-            // Proses Penjualan Mentah
             if (resData.penjualan) { resData.penjualan.forEach(r => { let tgl = r[0]; if(!tgl) return; tgl = String(tgl).split('T')[0]; let t = parseFloat(r[1])||0, q = parseFloat(r[2])||0, s = parseFloat(r[3])||0, g = parseFloat(r[4])||0; let tot = t + q + s + g; if(!groupedData[tgl]) groupedData[tgl] = { tanggal: tgl, penjualan: { tunai:0, qris:0, shopee:0, grab:0 }, total_penjualan: 0, pengeluaran_list: [] }; groupedData[tgl].penjualan.tunai += t; groupedData[tgl].penjualan.qris += q; groupedData[tgl].penjualan.shopee += s; groupedData[tgl].penjualan.grab += g; groupedData[tgl].total_penjualan += tot; }); }
-            // Proses Pengeluaran Mentah
             if (resData.pengeluaran) { resData.pengeluaran.forEach((r, i) => { let tgl = r[0]; if(!tgl) return; tgl = String(tgl).split('T')[0]; if(!groupedData[tgl]) groupedData[tgl] = { tanggal: tgl, penjualan: { tunai:0, qris:0, shopee:0, grab:0 }, total_penjualan: 0, pengeluaran_list: [] }; groupedData[tgl].pengeluaran_list.push({ id: `migrasi_${Date.now()}_${i}`, item: (r[1] || "").trim(), kategori: r[2] || "Lainnya", jumlah: parseFloat(r[3]) || 0, satuan: r[4] || "Ls", harga: parseFloat(r[5]) || 0 }); }); }
 
-            // Batched Write ke Firebase
             const batch = db.batch(); let count = 0;
             Object.values(groupedData).forEach(dataTgl => { let docRef = db.collection('laporan_keuangan').doc(dataTgl.tanggal); dataTgl.last_updated = firebase.firestore.FieldValue.serverTimestamp(); dataTgl.is_sync = true; batch.set(docRef, dataTgl, { merge: true }); count++; });
             if (count > 0) await batch.commit();
