@@ -460,6 +460,43 @@
     const itemsPerPage = 10;
 
     // ==========================================
+    // SISTEM NOTIFIKASI REAL-TIME (PEGAWAI -> OWNER)
+    // ==========================================
+    // Fungsi Pegawai: Menembak data notif ke Firebase
+    async function triggerRemoteNotification(title, body) {
+        try {
+            await db.collection('notifikasi').add({
+                title: title,
+                body: body,
+                createdAt: Date.now() // Catat waktu persis saat dikirim
+            });
+        } catch (e) { console.error("Gagal menembak notif:", e); }
+    }
+
+    // Fungsi Owner: Mendengarkan database secara live
+    let isListeningNotif = false;
+    function startOwnerNotifListener() {
+        if (isListeningNotif) return;
+        isListeningNotif = true;
+        
+        // Catat waktu owner login. Kita hanya peduli notif BARU setelah owner buka app.
+        const loginTime = Date.now(); 
+        
+        db.collection('notifikasi').where('createdAt', '>=', loginTime)
+          .onSnapshot(snapshot => {
+              snapshot.docChanges().forEach(change => {
+                  if (change.type === 'added') {
+                      const data = change.doc.data();
+                      // Jika waktunya lebih besar dari waktu login, bunyikan alarm!
+                      if (data.createdAt > loginTime) {
+                          sendAppNotification(data.title, data.body);
+                      }
+                  }
+              });
+          });
+    }
+
+    // ==========================================
     // LOGIKA MULTI-SPREADSHEET (ROUTER API)
     // ==========================================
     const API_URL_PRESENSI = "https://script.google.com/macros/s/AKfycbyEyzRPvKN_H9OTxCe6YzLVFLegtIwB73lagp0weSoSgPjFfHtTxFsL77l75bD8JrOQ/exec";
@@ -629,9 +666,10 @@
                 total_penjualan: totalBersih, last_updated: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
-            // --- EKSEKUSI PUSH NOTIFIKASI NATIVE ---
+            // --- MENEMBAK NOTIF KE HP OWNER ---
             let msgBody = `Tunai: Rp ${vTunai.toLocaleString('id-ID')}\nQRIS: Rp ${vQris.toLocaleString('id-ID')}\nShopee: Rp ${vShopee.toLocaleString('id-ID')}\nGrab: Rp ${vGrab.toLocaleString('id-ID')}\n---\nTotal Bersih: Rp ${totalBersih.toLocaleString('id-ID')}`;
-            sendAppNotification("💰 Laporan Penjualan Masuk!", msgBody);
+            triggerRemoteNotification("💰 Laporan Penjualan Masuk!", msgBody);
+            // ---------------------------------------
             // ---------------------------------------
 
             Swal.fire('Berhasil!', 'Pesan pengingat berhasil terkirim!', 'success');
@@ -1415,7 +1453,7 @@
 
                     if (itemsToRestock.length > 0) {
                         let msgBody = `Daftar bahan:\n- ${itemsToRestock.join('\n- ')}`;
-                        sendAppNotification("🚨 Segera Restok Bahan!", msgBody);
+                        triggerRemoteNotification("🚨 Segera Restok Bahan!", msgBody);
                     }
                     // ---------------------------------------------
 
@@ -1506,6 +1544,8 @@
                 if (role === 'owner') {
                     document.querySelectorAll('.owner-only').forEach(m => m.style.display = 'flex'); document.querySelectorAll('.pegawai-only').forEach(m => m.style.display = 'none'); 
                     switchPage('pagePemantau'); // Owner default ke pantau stok
+                    // NYALAKAN RADAR NOTIFIKASI KHUSUS OWNER
+                    startOwnerNotifListener();
                 } else {
                     document.querySelectorAll('.owner-only').forEach(m => m.style.display = 'none'); document.querySelectorAll('.pegawai-only').forEach(m => m.style.display = 'flex'); 
                     document.getElementById('userDisplayPresensi').innerHTML = `Halo, <b class="text-primary">${namaAsli}</b>`;
