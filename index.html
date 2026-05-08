@@ -399,35 +399,81 @@
     // ==========================================
     // FUNGSI PUSH NOTIFICATION NATIVE (ANDROID)
     // ==========================================
+    
+    // 1. Daftarkan Service Worker (SYARAT WAJIB ANDROID)
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+            navigator.serviceWorker.register('./service-worker.js').then(function(registration) {
+                console.log('ServiceWorker siap bertugas!');
+            }, function(err) {
+                console.log('ServiceWorker gagal:', err);
+            });
+        });
+    }
+
+    // 2. Minta Izin Notifikasi
     function requestNotificationPermission() {
         if (!("Notification" in window)) {
-            console.log("Browser tidak mendukung notifikasi web.");
+            console.log("Browser tidak mendukung notifikasi.");
         } else if (Notification.permission !== "denied" && Notification.permission !== "granted") {
             Notification.requestPermission();
         }
     }
+    window.addEventListener('load', requestNotificationPermission);
 
+    // 3. Eksekusi Notifikasi
     function sendAppNotification(title, body) {
         if ("Notification" in window && Notification.permission === "granted") {
-            // Mencoba via Service Worker agar lebih native di Android (bisa ada getaran & badge)
-            if (navigator.serviceWorker) {
-                navigator.serviceWorker.ready.then(function(registration) {
-                    registration.showNotification(title, {
+            navigator.serviceWorker.getRegistration().then(function(reg) {
+                if (reg) {
+                    // Gunakan Service Worker agar memicu getaran dan muncul di bar atas Android
+                    reg.showNotification(title, {
                         body: body,
                         icon: 'https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png',
                         vibrate: [200, 100, 200, 100, 200],
-                        tag: 'segooro-notif'
+                        tag: 'segooro-notif',
+                        requireInteraction: true
                     });
-                }).catch(function() {
-                    // Fallback jika belum pasang sw.js
+                } else {
+                    // Fallback darurat
                     new Notification(title, { body: body, icon: 'https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png' });
-                });
-            } else {
-                new Notification(title, { body: body, icon: 'https://raw.githubusercontent.com/segooro/segooro-app/main/segooro-192.png' });
-            }
+                }
+            });
         }
     }
 
+    // ==========================================
+    // SISTEM NOTIFIKASI REAL-TIME (PEGAWAI -> OWNER)
+    // ==========================================
+    async function triggerRemoteNotification(title, body) {
+        try {
+            await db.collection('notifikasi').add({
+                title: title,
+                body: body,
+                createdAt: Date.now() 
+            });
+        } catch (e) { console.error("Gagal menembak notif:", e); }
+    }
+
+    let isListeningNotif = false;
+    function startOwnerNotifListener() {
+        if (isListeningNotif) return;
+        isListeningNotif = true;
+        
+        const loginTime = Date.now(); 
+        
+        db.collection('notifikasi').where('createdAt', '>=', loginTime)
+          .onSnapshot(snapshot => {
+              snapshot.docChanges().forEach(change => {
+                  if (change.type === 'added') {
+                      const data = change.doc.data();
+                      if (data.createdAt > loginTime) {
+                          sendAppNotification(data.title, data.body);
+                      }
+                  }
+              });
+          });
+    }
     // Panggil fungsi minta izin segera setelah PWA dimuat
     window.addEventListener('load', requestNotificationPermission);
 
