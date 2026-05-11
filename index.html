@@ -1506,8 +1506,26 @@
         firebase.auth().signInWithEmailAndPassword(email, pass).catch(err => Swal.fire('Gagal Masuk', 'Email atau sandi salah.', 'error'));
     }
 
-    function calculateHours(timeIn, timeOut) { if (!timeIn || !timeOut || timeIn === '..' || timeOut === '..') return 0; let [inH, inM] = timeIn.split(':').map(Number); let [outH, outM] = timeOut.split(':').map(Number); let dIn = new Date(2000, 0, 1, inH, inM); let dOut = new Date(2000, 0, 1, outH, outM); if (dOut < dIn) dOut.setDate(dOut.getDate() + 1); return Math.round(((dOut - dIn) / (1000 * 60 * 60)) * 10) / 10; }
+    function calculateHours(timeIn, timeOut) { 
+        if (!timeIn || !timeOut || timeIn === '..' || timeOut === '..') return 0; 
+        
+        // Ubah titik menjadi titik dua secara otomatis agar mesin tidak bingung
+        let safeIn = String(timeIn).replace('.', ':');
+        let safeOut = String(timeOut).replace('.', ':');
 
+        let [inH, inM] = safeIn.split(':').map(Number); 
+        let [outH, outM] = safeOut.split(':').map(Number); 
+        
+        // Cegah error NaN jika formatnya masih aneh
+        if (isNaN(inH) || isNaN(inM) || isNaN(outH) || isNaN(outM)) return 0;
+
+        let dIn = new Date(2000, 0, 1, inH, inM); 
+        let dOut = new Date(2000, 0, 1, outH, outM); 
+        
+        if (dOut < dIn) dOut.setDate(dOut.getDate() + 1); 
+        
+        return Math.round(((dOut - dIn) / (1000 * 60 * 60)) * 10) / 10; 
+    }
     function handleRegister() { Swal.fire({ title: 'Daftar Akun Baru', html: `<input id="regNama" type="text" class="swal2-input" placeholder="Nama Lengkap Karyawan" style="width: 85%; margin: 10px auto;"><input id="regEmail" type="email" class="swal2-input" placeholder="Email aktif" style="width: 85%; margin: 10px auto;"><input id="regPass" type="password" class="swal2-input" placeholder="Kata sandi (min 6 karakter)" style="width: 85%; margin: 10px auto;">`, confirmButtonText: 'Daftar', showCancelButton: true, confirmButtonColor: '#1D407A', preConfirm: () => { return { nama: document.getElementById('regNama').value.trim(), email: document.getElementById('regEmail').value.trim(), pass: document.getElementById('regPass').value }; } }).then((res) => { if (res.isConfirmed) { if (!res.value.nama || !res.value.email || res.value.pass.length < 6) return Swal.fire('Gagal', 'Lengkapi data, sandi min 6 karakter.', 'error'); Swal.fire({ title: 'Mendaftarkan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); firebase.auth().createUserWithEmailAndPassword(res.value.email, res.value.pass).then(async (cred) => { await db.collection('users').doc(res.value.email).set({ nama: res.value.nama.toUpperCase(), role: 'pegawai', createdAt: firebase.firestore.FieldValue.serverTimestamp() }); Swal.fire('Berhasil!', 'Akun terdaftar sebagai Pegawai. Silakan Login.', 'success'); }).catch(error => Swal.fire('Gagal', error.message, 'error')); } }); }
 
     function handleResetPassword() { Swal.fire({ title: 'Reset Kata Sandi', input: 'email', inputPlaceholder: 'Masukkan email terdaftar', confirmButtonText: 'Kirim Link Reset', showCancelButton: true, confirmButtonColor: '#1D407A' }).then((res) => { if (res.isConfirmed && res.value) { firebase.auth().sendPasswordResetEmail(res.value).then(() => Swal.fire('Terkirim!', 'Cek kotak masuk/spam email kamu.', 'success')).catch(error => Swal.fire('Gagal', 'Email tidak ditemukan.', 'error')); } }); }
