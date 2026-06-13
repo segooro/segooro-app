@@ -323,10 +323,10 @@
                     <input type="date" id="rekapEnd" class="form-control form-control-sm border-gray-300">
                     <button class="btn btn-primary btn-sm px-3 shadow-sm" style="border-radius:10px;" onclick="loadRekapKeuangan()"><i class="bi bi-search"></i></button>
                     
-                    <button class="btn btn-outline-danger btn-sm px-3" style="border-radius: 10px; border: 2px solid #fecadd;" onclick="downloadRekapPDF()" title="Ekspor Laporan PDF">
+                    <button class="btn btn-outline-danger btn-sm px-3" style="border-radius: 10px; border: 2px solid #fecadd;" onclick="downloadRekapPDF()" title="Ekspor Rekap Laporan PDF">
                         <i class="bi bi-file-earmark-pdf fs-6 text-danger"></i>
                     </button>
-                    
+
                     <button class="btn btn-outline-secondary btn-sm px-3" style="border-radius: 10px; border: 2px solid #e1e5ee;" onclick="syncLogKeuangan()" title="Tarik dari Sheets">
                         <i class="bi bi-arrow-repeat fs-6 text-primary"></i>
                     </button>
@@ -458,7 +458,7 @@
     let tempAiItems = [];
     let globalRecipes = null;
     let currentPayrollData = null; 
-    const TARIF_GAJI_PER_JAM = 10000; 
+    const TARIF_GAJI_PER_JAM = 6250; 
     
     let KATEGORI_OPTIONS = [];
     let SATUAN_OPTIONS = [];
@@ -648,7 +648,7 @@
 
     async function simpanPenjualan() {
         const tgl = document.getElementById('keuTglPenjualan').value;
-        const vTunai = parseFloat(document.getElementById('keuTunai').value) || 0;
+        const vTunai = parseFloat(document.getElementById('keuTutai').value) || 0;
         const vQris = parseFloat(document.getElementById('keuQris').value) || 0;
         const vShopee = parseFloat(document.getElementById('keuShopee').value) || 0;
         const vGrab = parseFloat(document.getElementById('keuGrab').value) || 0;
@@ -671,7 +671,7 @@
             let msgBody = `Tunai: Rp ${vTunai.toLocaleString('id-ID')}\nQRIS: Rp ${vQris.toLocaleString('id-ID')}\nShopee: Rp ${vShopee.toLocaleString('id-ID')}\nGrab: Rp ${vGrab.toLocaleString('id-ID')}\n---\nTotal Bersih: Rp ${totalBersih.toLocaleString('id-ID')}`;
             triggerRemoteNotification("💰 Laporan Penjualan Masuk!", msgBody);
 
-            Swal.fire('Berhasil!', 'Pesan pengingat berhasil terkirim!', 'success');
+            Swal.fire('Berhasil!', 'Data penjualan tersimpan di Firebase.', 'success');
             
             document.getElementById('keuTunai').value = ""; document.getElementById('keuQris').value = "";
             document.getElementById('keuShopee').value = ""; document.getElementById('keuGrab').value = "";
@@ -707,6 +707,7 @@
         } catch (err) { Swal.fire('Error', err.message, 'error'); }
     }
 
+    // --- LOGIKA RIWAYAT & EDIT PENGELUARAN (FULL BARU) ---
     async function loadExpenseHistory(resetPage = true) {
         const startTgl = document.getElementById('historyDateStart').value;
         const endTgl = document.getElementById('historyDateEnd').value;
@@ -937,7 +938,7 @@
         }
     }
 
-    // --- FUNGSI EKSPOR PDF LAPORAN REKAP KEUANGAN ---
+    // --- FUNGSI EKSPOR REKAP KEUANGAN PDF (BARU) ---
     function downloadRekapPDF() {
         const start = document.getElementById('rekapStart').value;
         const end = document.getElementById('rekapEnd').value;
@@ -997,7 +998,7 @@
             </div>
         `;
 
-        Swal.fire({ title: 'Mempersiapkan Dokumen...', text: 'Sedang merender rekap PDF', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+        Swal.fire({ title: 'Mempersiapkan Laporan...', text: 'Sedang merender rekap PDF', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
         
         let opt = { 
             margin: [10, 10, 10, 10], 
@@ -1112,6 +1113,7 @@
             });
             
             await batch.commit();
+
             Swal.fire('Berhasil!', `${listToSave.length} barang tersimpan dari struk.`, 'success');
             document.getElementById('aiResultArea').style.display = "none"; document.getElementById('previewContainer').style.display = "none";
             document.getElementById('fotoStruk').value = ""; aiBase64Image = "";
@@ -1130,7 +1132,7 @@
                 const yesterdayRef = await db.collection('laporan_stok').doc(yesterdayStr).get();
                 let yesterdayData = {}; if (yesterdayRef.exists) { yesterdayRef.data().items.forEach(item => { yesterdayData[item.nama] = item.akhir; }); }
                 const snapshot = await db.collection('master_stok').get(); let fbData = [];
-                snapshot.forEach(doc => { const d = doc.data(); let awalVal = yesterdayData[d.nama] || 0; fbData.push({ nama: d.nama, kategori: d.kategori, satuan: d.satuan, awal: awalVal, masuk: 0, terbuang: 0, akhir: "" }); });
+                snapshot.forEach(doc => { const d = doc.data(); let awalVal = yesterdayData[d.nama] || 0; fbData.push({ nama: d.nama, kategori: d.kategori, satuan: d.satuan, awal: awalVal, margin: 0, terbuang: 0, akhir: "" }); });
                 if(fbData.length === 0) throw new Error("Master stok kosong. Hubungi Admin.");
                 currentStockData = fbData; await db.collection('laporan_stok').doc(dateStr).set({ tanggal: dateStr, operator: window.currentUserNama || "Pegawai", status: "Sedang Berjalan", last_updated: firebase.firestore.FieldValue.serverTimestamp(), items: currentStockData });
                 renderStockList();
@@ -1145,11 +1147,6 @@
         btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`; btn.disabled = true; inputElem.disabled = true;
         try { currentStockData[index][type] += val; await syncToFirebase(dateStr); document.getElementById(`tot-${type}-${index}`).innerText = currentStockData[index][type]; inputElem.value = ""; btn.innerHTML = origIcon; btn.disabled = false; inputElem.disabled = false; } 
         catch (err) { currentStockData[index][type] -= val; btn.innerHTML = origIcon; btn.disabled = false; inputElem.disabled = false; Swal.fire({ icon: 'error', title: 'Gagal Sinkron', text: err.message }); }
-    }
-
-    async function updateVal(index, field, val) {
-        currentStockData[index][field] = (val === "") ? "" : parseFloat(val); document.getElementById(`stockRow-${index}`).classList.remove('error-highlight');
-        try { await syncToFirebase(document.getElementById('stockDate').value); } catch(err){}
     }
 
     async function handleSaveStock() {
@@ -1218,8 +1215,6 @@
         } catch (err) { content.innerHTML = `<div class="alert alert-danger m-3 small text-center">Gagal memuat CCTV: ${err.message}</div>`; }
     }
 
-    function applyStockFilter() { adminFilter.stockDate = document.getElementById('adminStockDate').value; loadPemantau(); }
-
     function renderStockMonitorGrid(stocks, reportStatus = "Berjalan", operator = "-", lastUpdated, dateStr) {
         const content = document.getElementById('pemantauContent');
         if(!stocks || stocks.length === 0) return content.innerHTML = '<p class="text-center text-muted mt-4">Data stok kosong.</p>';
@@ -1281,8 +1276,6 @@
         firebase.auth().signInWithEmailAndPassword(email, pass).catch(err => Swal.fire('Gagal Masuk', 'Email atau sandi salah.', 'error'));
     }
 
-    function calculateHours(timeIn, timeOut) { if (!timeIn || !timeOut || timeIn === '..' || timeOut === '..') return 0; let [inH, inM] = timeIn.split(':').map(Number); let [outH, outM] = timeOut.split(':').map(Number); let dIn = new Date(2000, 0, 1, inH, inM); let dOut = new Date(2000, 0, 1, outH, outM); if (dOut < dIn) dOut.setDate(dOut.getDate() + 1); return Math.round(((dOut - dIn) / (1000 * 60 * 60)) * 10) / 10; }
-
     function handleRegister() { Swal.fire({ title: 'Daftar Akun Baru', html: `<input id="regNama" type="text" class="swal2-input" placeholder="Nama Lengkap Karyawan" style="width: 85%; margin: 10px auto;"><input id="regEmail" type="email" class="swal2-input" placeholder="Email aktif" style="width: 85%; margin: 10px auto;"><input id="regPass" type="password" class="swal2-input" placeholder="Kata sandi (min 6 karakter)" style="width: 85%; margin: 10px auto;">`, confirmButtonText: 'Daftar', showCancelButton: true, confirmButtonColor: '#1D407A', preConfirm: () => { return { nama: document.getElementById('regNama').value.trim(), email: document.getElementById('regEmail').value.trim(), pass: document.getElementById('regPass').value }; } }).then((res) => { if (res.isConfirmed) { if (!res.value.nama || !res.value.email || res.value.pass.length < 6) return Swal.fire('Gagal', 'Lengkapi data, sandi min 6 karakter.', 'error'); Swal.fire({ title: 'Mendaftarkan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); firebase.auth().createUserWithEmailAndPassword(res.value.email, res.value.pass).then(async (cred) => { await db.collection('users').doc(res.value.email).set({ nama: res.value.nama.toUpperCase(), role: 'pegawai', createdAt: firebase.firestore.FieldValue.serverTimestamp() }); Swal.fire('Berhasil!', 'Akun terdaftar sebagai Pegawai. Silakan Login.', 'success'); }).catch(error => Swal.fire('Gagal', error.message, 'error')); } }); }
 
     function handleResetPassword() { Swal.fire({ title: 'Reset Kata Sandi', input: 'email', inputPlaceholder: 'Masukkan email terdaftar', confirmButtonText: 'Kirim Link Reset', showCancelButton: true, confirmButtonColor: '#1D407A' }).then((res) => { if (res.isConfirmed && res.value) { firebase.auth().sendPasswordResetEmail(res.value).then(() => Swal.fire('Terkirim!', 'Cek kotak masuk/spam email kamu.', 'success')).catch(error => Swal.fire('Gagal', 'Email tidak ditemukan.', 'error')); } }); }
@@ -1296,7 +1289,6 @@
             if (!resData) throw new Error("Data gagal ditarik.");
 
             await db.collection('pengaturan').doc('opsi_keuangan').set({ kategori: resData.kategori || [], satuan: resData.satuan || [] });
-            
             KATEGORI_OPTIONS = resData.kategori || []; SATUAN_OPTIONS = resData.satuan || []; 
 
             let groupedData = {};
@@ -1310,6 +1302,143 @@
             loadKeuanganDropdowns(); loadRekapKeuangan();
             Swal.fire('Migrasi Sukses!', `Total ${count} hari data sejarah keuangan berhasil dipindah Full ke Firebase.`, 'success');
         } catch (err) { Swal.fire('Gagal Sedot Data', err.message, 'error'); }
+    }
+
+    // --- LOGIKA RIWAYAT & EDIT PENGELUARAN (FULL BARU) ---
+    async function loadExpenseHistory(resetPage = true) {
+        const startTgl = document.getElementById('historyDateStart').value;
+        const endTgl = document.getElementById('historyDateEnd').value;
+        if(!startTgl || !endTgl) return;
+
+        const listCont = document.getElementById('expenseHistoryList');
+        const pagCont = document.getElementById('historyPagination');
+        const countLbl = document.getElementById('lblCountHistory');
+        const query = document.getElementById('historySearchInput').value.toLowerCase().trim();
+
+        if(resetPage) historyCurrentPage = 1;
+        
+        listCont.innerHTML = '<div class="text-center text-muted py-3 small"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Memuat...</div>';
+        pagCont.innerHTML = "";
+        countLbl.innerText = "0 Item";
+
+        try {
+            if(resetPage) {
+                const snapshot = await db.collection('laporan_keuangan')
+                    .where('tanggal', '>=', startTgl)
+                    .where('tanggal', '<=', endTgl)
+                    .get();
+                
+                rawHistoryData = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if(data.pengeluaran_list && data.pengeluaran_list.length > 0) {
+                        data.pengeluaran_list.forEach(expItem => {
+                            expItem.docTanggal = data.tanggal; 
+                            rawHistoryData.push(expItem);
+                        });
+                    }
+                });
+
+                rawHistoryData.sort((a,b) => {
+                    let timeA = a.id.split('_')[1] || 0;
+                    let timeB = b.id.split('_')[1] || 0;
+                    return timeB - timeA;
+                });
+            }
+
+            if(!query) {
+                filteredHistoryData = [...rawHistoryData];
+            } else {
+                filteredHistoryData = rawHistoryData.filter(exp => 
+                    exp.item.toLowerCase().includes(query) || 
+                    exp.kategori.toLowerCase().includes(query)
+                );
+            }
+
+            countLbl.innerText = filteredHistoryData.length + " Item";
+            renderHistoryPage();
+
+        } catch (err) {
+            console.error(err);
+            listCont.innerHTML = `<div class="text-center text-danger py-3 small">Gagal memuat: ${err.message}</div>`;
+        }
+    }
+
+    // --- FUNGSI EKSPOR PDF LAPORAN REKAP KEUANGAN ---
+    function downloadRekapPDF() {
+        const start = document.getElementById('rekapStart').value;
+        const end = document.getElementById('rekapEnd').value;
+        if(!start || !end) return Swal.fire('Oops', 'Tentukan rentang tanggal rekap terlebih dahulu.', 'warning');
+
+        const startStr = start.split('-').reverse().join('/');
+        const endStr = end.split('-').reverse().join('/');
+
+        const totalJual = document.getElementById('lblTotalPenjualan').innerText;
+        const totalKeluar = document.getElementById('lblTotalPengeluaran').innerText;
+        const totalSaldo = document.getElementById('lblTotalSaldo').innerText;
+        const tableBodyHtml = document.getElementById('rekapTableBody').innerHTML;
+
+        const printContainer = document.createElement('div');
+        printContainer.style.padding = '30px';
+        printContainer.style.fontFamily = "'Segoe UI', Roboto, sans-serif";
+        printContainer.style.color = '#2d3436';
+        printContainer.style.background = '#fff';
+
+        printContainer.innerHTML = `
+            <div style="text-align: center; border-bottom: 3px double #1D407A; padding-bottom: 15px; margin-bottom: 25px;">
+                <h2 style="margin: 0; color: #1D407A; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;">Segoo.Ro</h2>
+                <p style="margin: 5px 0 0 0; font-size: 13px; color: #2d3436; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Laporan Ringkasan Keuangan (Rekap Arus Kas)</p>
+                <p style="margin: 3px 0 0 0; font-size: 12px; color: #636e72;">Periode Laporan: <b>${startStr}</b> s/d <b>${endStr}</b></p>
+            </div>
+
+            <div style="margin-bottom: 25px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <tr>
+                        <td style="padding: 12px; background: #e8f8f5; border-left: 5px solid #2ecc71; font-weight: bold; color: #27ae60; width: 32%;">TOTAL PENJUALAN<br><span style="font-size: 16px; font-weight: 900; display:block; margin-top:4px;">${totalJual}</span></td>
+                        <td style="width: 2%;"></td>
+                        <td style="padding: 12px; background: #fdedec; border-left: 5px solid #e74c3c; font-weight: bold; color: #c0392b; width: 32%;">TOTAL PENGELUARAN<br><span style="font-size: 16px; font-weight: 900; display:block; margin-top:4px;">${totalKeluar}</span></td>
+                        <td style="width: 2%;"></td>
+                        <td style="padding: 12px; background: #eaf2f8; border-left: 5px solid #3498db; font-weight: bold; color: #2980b9; width: 32%;">SALDO BERSIH<br><span style="font-size: 16px; font-weight: 900; display:block; margin-top:4px;">${totalSaldo}</span></td>
+                    </tr>
+                </table>
+            </div>
+
+            <h4 style="font-weight: 800; color: #1D407A; border-bottom: 2px solid #1D407A; padding-bottom: 5px; margin-bottom: 12px; font-size: 13px; text-transform: uppercase;">Rincian Arus Kas Harian</h4>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+                <thead>
+                    <tr style="background: #f8f9fa; border-bottom: 2px solid #e1e5ee; color: #636e72;">
+                        <th style="padding: 8px 6px; font-weight:bold;">Tanggal</th>
+                        <th style="padding: 8px 6px; font-weight:bold;">Penjualan</th>
+                        <th style="padding: 8px 6px; font-weight:bold;">Pengeluaran</th>
+                        <th style="padding: 8px 6px; font-weight:bold;">Saldo Harian</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableBodyHtml}
+                </tbody>
+            </table>
+
+            <div style="text-align: center; margin-top: 50px; font-size: 10px; color: #b2bec3; border-top: 1px dashed #e1e5ee; padding-top: 15px;">
+                <p style="margin: 0;">Laporan ini diunduh secara resmi melalui Aplikasi Manajemen Internal PWA Segoo.Ro</p>
+                <p style="margin: 3px 0 0 0;">Waktu Unduh: ${new Date().toLocaleString('id-ID')}</p>
+            </div>
+        `;
+
+        Swal.fire({ title: 'Mempersiapkan Laporan...', text: 'Sedang merender rekap PDF', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+        
+        let opt = { 
+            margin: [10, 10, 10, 10], 
+            filename: `Laporan_Rekap_Keuangan_SegooRo_${start}_to_${end}.pdf`, 
+            image: { type: 'jpeg', quality: 0.98 }, 
+            html2canvas: { scale: 2 }, 
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
+        };
+        
+        html2pdf().set(opt).from(printContainer).save().then(() => { 
+            Swal.fire({ icon: 'success', title: 'Berhasil!', text: 'PDF berhasil terbuat!', timer: 1500, showConfirmButton: false }); 
+        }).catch(err => { 
+            Swal.fire('Gagal', err.message, 'error'); 
+        });
     }
 </script>
 
